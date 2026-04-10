@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CatCam - Session</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0f0f1a;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    padding: 16px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .back-link {
+    display: inline-block;
+    color: #888;
+    text-decoration: none;
+    margin-bottom: 16px;
+    font-size: 0.9em;
+  }
+  .back-link:hover { color: #e94560; }
+
+  h1 {
+    text-align: center;
+    margin-bottom: 4px;
+    font-size: 1.8em;
+  }
+  .h-papouille { color: #4fc3f7; }
+  .h-tigrou { color: #ffb74d; }
+  .h-erreur { color: #888; }
+  .h-incertain { color: #ffc107; }
+
+  .subtitle {
+    text-align: center;
+    color: #888;
+    margin-bottom: 24px;
+    font-size: 0.95em;
+  }
+
+  .timelapse-box {
+    background: #1a1a2e;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    text-align: center;
+    border: 1px solid #2a2a4a;
+  }
+  .timelapse-box img {
+    max-width: 100%;
+    border-radius: 8px;
+    background: #000;
+  }
+  .timelapse-box .label {
+    color: #888;
+    font-size: 0.8em;
+    margin-top: 8px;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  @media (min-width: 600px) {
+    .cards { grid-template-columns: repeat(4, 1fr); }
+  }
+  .card {
+    background: #1a1a2e;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    border: 1px solid #2a2a4a;
+  }
+  .card .value {
+    font-size: 1.6em;
+    font-weight: bold;
+    color: #e0e0e0;
+  }
+  .card .label {
+    color: #888;
+    font-size: 0.8em;
+    margin-top: 4px;
+  }
+  .v-papouille { color: #4fc3f7; }
+  .v-tigrou { color: #ffb74d; }
+
+  .details {
+    background: #1a1a2e;
+    border-radius: 12px;
+    padding: 18px;
+    border: 1px solid #2a2a4a;
+  }
+  .details h2 {
+    color: #e94560;
+    font-size: 1.1em;
+    margin-bottom: 12px;
+  }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #2a2a4a;
+    font-size: 0.9em;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .lbl { color: #888; }
+
+  .loading, .error {
+    text-align: center;
+    padding: 60px 20px;
+    color: #888;
+  }
+  .error { color: #f44336; }
+
+  .cat-tag {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .tag-papouille { background: #4fc3f722; color: #4fc3f7; }
+  .tag-tigrou { background: #ffb74d22; color: #ffb74d; }
+  .tag-incertain { background: #ffc10722; color: #ffc107; }
+  .tag-erreur { background: #88888822; color: #888; }
+</style>
+</head>
+<body>
+
+<a class="back-link" href="index.html">&larr; Retour au dashboard</a>
+
+<div id="content">
+  <div class="loading">Chargement...</div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://pnkultqeijguvthjrehx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBua3VsdHFlaWpndXZ0aGpyZWh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NDE4NjYsImV4cCI6MjA4NTMxNzg2Nn0.TrD_cGc-VLBfBsMVXg2rInM2LPjLyhXxZFBjHJ2MB_8';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function formatDuration(seconds) {
+  if (!seconds || seconds < 0) return '-';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  if (m === 0) return `${s}s`;
+  return `${m}m${s.toString().padStart(2, '0')}s`;
+}
+
+function formatDateTime(iso) {
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(2);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yy} a ${hh}h${min}`;
+}
+
+function showError(msg) {
+  document.getElementById('content').innerHTML =
+    `<div class="error">Erreur : ${msg}</div>`;
+}
+
+async function loadSession() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  if (!id) {
+    showError('Aucun id fourni');
+    return;
+  }
+
+  const { data, error } = await sb
+    .from('sessions')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error || !data) {
+    showError(error ? error.message : 'Session introuvable');
+    return;
+  }
+
+  renderSession(data);
+}
+
+function renderSession(s) {
+  const cat = s.cat || 'incertain';
+  const when = formatDateTime(s.start_time);
+  const duration = formatDuration(s.duration_s);
+  const water = Math.round(s.delta_g || 0);
+  const rate = (s.rate_gs || 0).toFixed(2);
+  const conf = Math.round((s.avg_conf || 0) * 100);
+
+  const videoBlock = s.video_url
+    ? `<div class="timelapse-box">
+         <img src="${s.video_url}" alt="Timelapse">
+         <div class="label">Timelapse en boucle (${s.n_images || 0} images)</div>
+       </div>`
+    : `<div class="timelapse-box">
+         <div class="label">Timelapse non disponible</div>
+       </div>`;
+
+  document.getElementById('content').innerHTML = `
+    <h1 class="h-${cat}">
+      ${cat.charAt(0).toUpperCase() + cat.slice(1)}
+      <span class="cat-tag tag-${cat}">${s.certainty || '-'}</span>
+    </h1>
+    <p class="subtitle">${when}</p>
+
+    ${videoBlock}
+
+    <div class="cards">
+      <div class="card">
+        <div class="value v-${cat}">${water}g</div>
+        <div class="label">Eau bue</div>
+      </div>
+      <div class="card">
+        <div class="value v-${cat}">${duration}</div>
+        <div class="label">Duree</div>
+      </div>
+      <div class="card">
+        <div class="value v-${cat}">${rate}</div>
+        <div class="label">g / sec</div>
+      </div>
+      <div class="card">
+        <div class="value v-${cat}">${conf}%</div>
+        <div class="label">Confiance reID</div>
+      </div>
+    </div>
+
+    <div class="details">
+      <h2>Details</h2>
+      <div class="row"><span class="lbl">Cluster ID</span><span>${s.id}</span></div>
+      <div class="row"><span class="lbl">Heure de debut</span><span>${when}</span></div>
+      <div class="row"><span class="lbl">Nombre d'images</span><span>${s.n_images || 0}</span></div>
+      <div class="row"><span class="lbl">Votes DINOv2</span><span>${s.votes || '-'}</span></div>
+      <div class="row"><span class="lbl">Pourcentage</span><span>${(s.pct || 0).toFixed(0)}%</span></div>
+      <div class="row"><span class="lbl">Ecart-type poids</span><span>${(s.weight_std || 0).toFixed(1)}g</span></div>
+      <div class="row"><span class="lbl">Amplitude</span><span>${(s.amplitude || 0).toFixed(1)}g</span></div>
+      <div class="row"><span class="lbl">Split detecte</span><span>${s.split_detected ? 'Oui' : 'Non'}</span></div>
+      <div class="row"><span class="lbl">TTA appliquee</span><span>${s.tta_applied ? 'Oui' : 'Non'}</span></div>
+      ${s.is_error ? '<div class="row"><span class="lbl" style="color:#f44336">Erreur balance</span><span style="color:#f44336">delta &gt; 100g</span></div>' : ''}
+    </div>
+  `;
+}
+
+loadSession();
+</script>
+
+</body>
+</html>

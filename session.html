@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CatCam - Session</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -88,6 +89,22 @@
   }
   .v-papouille { color: #4fc3f7; }
   .v-tigrou { color: #ffb74d; }
+
+  .chart-box {
+    background: #1a1a2e;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 20px;
+    border: 1px solid #2a2a4a;
+  }
+  .chart-box h2 {
+    color: #e94560;
+    font-size: 1.1em;
+    margin-bottom: 12px;
+  }
+  .chart-box canvas {
+    max-height: 300px;
+  }
 
   .details {
     background: #1a1a2e;
@@ -235,6 +252,11 @@ function renderSession(s) {
       </div>
     </div>
 
+    <div class="chart-box" id="chartBox" style="display:none;">
+      <h2>Poids sur la balance</h2>
+      <canvas id="weightChart"></canvas>
+    </div>
+
     <div class="details">
       <h2>Details</h2>
       <div class="row"><span class="lbl">Cluster ID</span><span>${s.id}</span></div>
@@ -249,6 +271,52 @@ function renderSession(s) {
       ${s.is_error ? '<div class="row"><span class="lbl" style="color:#f44336">Erreur balance</span><span style="color:#f44336">delta &gt; 100g</span></div>' : ''}
     </div>
   `;
+
+  renderWeightChart(s);
+}
+
+function renderWeightChart(s) {
+  const curve = s.weight_curve;
+  if (!curve || !Array.isArray(curve) || curve.length < 2) return;
+
+  document.getElementById('chartBox').style.display = 'block';
+
+  const labels = curve.map(p => p.t.toFixed(0) + 's');
+  const data = curve.map(p => p.g);
+
+  const color = s.cat === 'tigrou' ? '#ffb74d' : '#4fc3f7';
+
+  new Chart(document.getElementById('weightChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Poids (g)',
+        data: data,
+        borderColor: color,
+        backgroundColor: color + '33',
+        tension: 0.2,
+        fill: true,
+        pointRadius: 1,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          ticks: { color: '#888', callback: v => v + 'g' },
+          grid: { color: '#2a2a4a' },
+          title: { display: true, text: 'Poids (g)', color: '#888' },
+        },
+        x: {
+          ticks: { color: '#888', maxTicksLimit: 10 },
+          grid: { display: false },
+          title: { display: true, text: 'Temps (s)', color: '#888' },
+        }
+      }
+    }
+  });
 }
 
 loadSession();

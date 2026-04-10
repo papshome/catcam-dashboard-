@@ -90,6 +90,55 @@
   .v-papouille { color: #4fc3f7; }
   .v-tigrou { color: #ffb74d; }
 
+  .validation-box {
+    background: #1a1a2e;
+    border: 2px solid #ffc107;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .validation-box h2 {
+    color: #ffc107;
+    font-size: 1.1em;
+    margin-bottom: 8px;
+  }
+  .validation-box p {
+    color: #888;
+    font-size: 0.85em;
+    margin-bottom: 14px;
+  }
+  .validation-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .vbtn {
+    background: #16213e;
+    border: 2px solid;
+    color: #e0e0e0;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .vbtn-papouille { border-color: #4fc3f7; color: #4fc3f7; }
+  .vbtn-papouille:hover { background: #4fc3f722; }
+  .vbtn-tigrou { border-color: #ffb74d; color: #ffb74d; }
+  .vbtn-tigrou:hover { background: #ffb74d22; }
+  .vbtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .validation-status {
+    color: #4caf50;
+    font-weight: 600;
+    margin-top: 10px;
+  }
+
   .chart-box {
     background: #1a1a2e;
     border-radius: 12px;
@@ -231,6 +280,24 @@ function renderSession(s) {
     </h1>
     <p class="subtitle">${when}</p>
 
+    ${(s.cat === 'incertain' && !s.user_validated_cat) ? `
+    <div class="validation-box" id="validationBox">
+      <h2>Identification incertaine</h2>
+      <p>Le modele n'a pas reussi a determiner avec certitude quel chat est present. Aide-le en validant manuellement :</p>
+      <div class="validation-buttons">
+        <button class="vbtn vbtn-papouille" onclick="validateCat('papouille')">C'est Papouille</button>
+        <button class="vbtn vbtn-tigrou" onclick="validateCat('tigrou')">C'est Tigrou</button>
+      </div>
+    </div>
+    ` : ''}
+
+    ${s.user_validated_cat ? `
+    <div class="validation-box" style="border-color: #4caf50;">
+      <h2 style="color: #4caf50;">Validee par l'utilisateur</h2>
+      <p>Tu as confirme que c'est <b>${s.user_validated_cat}</b>. Cette session sera ajoutee au dataset d'entrainement lors du prochain reentrainement du modele.</p>
+    </div>
+    ` : ''}
+
     ${videoBlock}
 
     <div class="cards">
@@ -273,6 +340,37 @@ function renderSession(s) {
   `;
 
   renderWeightChart(s);
+}
+
+async function validateCat(catName) {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  if (!id) return;
+
+  // Disable buttons
+  const buttons = document.querySelectorAll('.vbtn');
+  buttons.forEach(b => b.disabled = true);
+
+  const { error } = await sb
+    .from('sessions')
+    .update({
+      cat: catName,
+      user_validated_cat: catName,
+      user_validated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  const box = document.getElementById('validationBox');
+  if (error) {
+    box.innerHTML = `<h2 style="color:#f44336;">Erreur</h2><p>${error.message}</p>`;
+    return;
+  }
+
+  box.style.borderColor = '#4caf50';
+  box.innerHTML = `
+    <h2 style="color:#4caf50;">Merci !</h2>
+    <p>Confirme : <b>${catName}</b>. Cette session sera ajoutee au dataset lors du prochain reentrainement.</p>
+  `;
 }
 
 function renderWeightChart(s) {

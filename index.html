@@ -284,9 +284,14 @@ function formatDuration(seconds) {
 
 function formatDateTime(iso) {
   const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(2);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
   return {
-    date: d.toISOString().slice(0, 10),
-    time: d.toTimeString().slice(0, 5),
+    date: `${dd}/${mm}/${yy}`,
+    time: `${hh}:${min}`,
   };
 }
 
@@ -365,8 +370,10 @@ function renderDashboard(sessions) {
   renderTable(sessions);
 
   // Subtitle
+  const now = new Date();
+  const nowStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getFullYear()).slice(2)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   document.getElementById('subtitle').textContent =
-    `${sessions.length} sessions sur 7 jours | Mis a jour ${new Date().toLocaleString('fr-FR')}`;
+    `${sessions.length} sessions sur 7 jours | Mis a jour ${nowStr}`;
   document.getElementById('content').style.display = 'block';
 }
 
@@ -444,9 +451,13 @@ function renderWaterChart(validSessions) {
 
   // Construire les 7 derniers jours en ordre chronologique
   const days = [];
+  const labels = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
     days.push(d.toISOString().slice(0, 10));
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    labels.push(`${dd}/${mm}`);
   }
 
   const papData = days.map(d => Math.round(byDay[d]?.papouille || 0));
@@ -455,7 +466,7 @@ function renderWaterChart(validSessions) {
   new Chart(document.getElementById('waterDailyChart').getContext('2d'), {
     type: 'bar',
     data: {
-      labels: days.map(d => d.slice(5)),
+      labels: labels,
       datasets: [
         { label: 'Papouille', data: papData, backgroundColor: PAP + 'cc', borderRadius: 4 },
         { label: 'Tigrou', data: tigData, backgroundColor: TIG + 'cc', borderRadius: 4 },

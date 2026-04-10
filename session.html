@@ -379,10 +379,25 @@ function renderWeightChart(s) {
 
   document.getElementById('chartBox').style.display = 'block';
 
-  // Reference : poids initial. On affiche le ml CUMULE consomme (positif = bu)
-  const w0 = curve[0].g;
-  const labels = curve.map(p => p.t.toFixed(0) + 's');
-  const data = curve.map(p => Math.max(0, w0 - p.g));   // 0 minimum, evite negatifs (bruit balance)
+  // Trimmer les plateaux du debut : le chat tourne autour avant de boire.
+  // On cherche le 1er point ou la consommation cumulee >= MIN_DRINK_DELTA
+  const MIN_DRINK_DELTA = 2;  // ml min pour considerer "boit vraiment"
+  const w0_init = curve[0].g;
+  let startIdx = 0;
+  for (let i = 0; i < curve.length; i++) {
+    if (w0_init - curve[i].g >= MIN_DRINK_DELTA) {
+      startIdx = Math.max(0, i - 1);  // 1 point avant pour le contexte
+      break;
+    }
+  }
+  const trimmedCurve = curve.slice(startIdx);
+
+  if (trimmedCurve.length < 2) return;
+
+  const w0 = trimmedCurve[0].g;
+  const t0 = trimmedCurve[0].t;
+  const labels = trimmedCurve.map(p => (p.t - t0).toFixed(0) + 's');
+  const data = trimmedCurve.map(p => Math.max(0, w0 - p.g));
 
   const totalMl = data[data.length - 1];
 

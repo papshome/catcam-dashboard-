@@ -493,6 +493,10 @@ function renderTable(sessions) {
   sessions.forEach(s => {
     const dt = formatDateTime(s.start_time);
     const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    tr.onclick = () => {
+      window.location.href = `session.html?id=${encodeURIComponent(s.id)}`;
+    };
 
     let catTag = `<span class="cat-tag cat-${s.cat}">${s.cat}</span>`;
     if (s.is_error) catTag = `<span class="cat-tag cat-erreur">erreur</span>`;

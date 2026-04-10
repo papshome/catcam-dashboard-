@@ -379,20 +379,28 @@ function renderWeightChart(s) {
 
   document.getElementById('chartBox').style.display = 'block';
 
+  // Reference : poids initial. On affiche le ml CUMULE consomme (positif = bu)
+  const w0 = curve[0].g;
   const labels = curve.map(p => p.t.toFixed(0) + 's');
-  const data = curve.map(p => p.g);
+  const data = curve.map(p => Math.max(0, w0 - p.g));   // 0 minimum, evite negatifs (bruit balance)
+
+  const totalMl = data[data.length - 1];
 
   const color = s.cat === 'tigrou' ? '#ffb74d' : '#4fc3f7';
+
+  // Mettre a jour le titre du graphique avec le total
+  const titleEl = document.querySelector('#chartBox h2');
+  if (titleEl) titleEl.textContent = `Consommation cumulee : ${totalMl.toFixed(0)} ml`;
 
   new Chart(document.getElementById('weightChart').getContext('2d'), {
     type: 'line',
     data: {
       labels: labels,
       datasets: [{
-        label: 'Poids (g)',
+        label: 'Consommation (ml)',
         data: data,
         borderColor: color,
-        backgroundColor: color + '33',
+        backgroundColor: color + '44',
         tension: 0.2,
         fill: true,
         pointRadius: 1,
@@ -403,9 +411,10 @@ function renderWeightChart(s) {
       plugins: { legend: { display: false } },
       scales: {
         y: {
-          ticks: { color: '#888', callback: v => v + 'g' },
+          beginAtZero: true,
+          ticks: { color: '#888', callback: v => v + ' ml' },
           grid: { color: '#2a2a4a' },
-          title: { display: true, text: 'Poids (g)', color: '#888' },
+          title: { display: true, text: 'ml consommes', color: '#888' },
         },
         x: {
           ticks: { color: '#888', maxTicksLimit: 10 },

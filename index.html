@@ -438,23 +438,30 @@ function addAlert(text, cls) {
   document.getElementById('alertsContainer').appendChild(div);
 }
 
+function localDateKey(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function renderWaterChart(validSessions) {
-  // Aggreger par jour x chat
+  // Aggreger par jour x chat (en heure LOCALE, pas UTC)
   const byDay = {};
   validSessions.forEach(s => {
-    const day = s.start_time.slice(0, 10);
+    const day = localDateKey(new Date(s.start_time));
     if (!byDay[day]) byDay[day] = { papouille: 0, tigrou: 0 };
     if (s.cat === 'papouille' || s.cat === 'tigrou') {
       byDay[day][s.cat] += (s.delta_g || 0);
     }
   });
 
-  // Construire les 7 derniers jours en ordre chronologique
+  // Construire les 7 derniers jours en ordre chronologique (heure LOCALE)
   const days = [];
   const labels = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-    days.push(d.toISOString().slice(0, 10));
+    days.push(localDateKey(d));
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     labels.push(`${dd}/${mm}`);

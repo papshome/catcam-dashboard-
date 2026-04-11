@@ -386,7 +386,7 @@ function computeStats(sessions, cat) {
     };
   }
 
-  const totalWater = filtered.reduce((sum, s) => sum + (s.delta_g || 0), 0);
+  const totalWater = filtered.reduce((sum, s) => sum + Math.round(s.delta_g || 0), 0);
   const visitsPerDay = filtered.length / 7;
   const avgDuration = filtered.reduce((sum, s) => sum + (s.duration_s || 0), 0) / filtered.length;
   const mlKgDay = (totalWater / 7) / CAT_WEIGHTS[cat];
@@ -447,12 +447,13 @@ function localDateKey(d) {
 
 function renderWaterChart(validSessions) {
   // Aggreger par jour x chat (en heure LOCALE, pas UTC)
+  // On arrondit chaque session AVANT de sommer pour matcher le tableau
   const byDay = {};
   validSessions.forEach(s => {
     const day = localDateKey(new Date(s.start_time));
     if (!byDay[day]) byDay[day] = { papouille: 0, tigrou: 0 };
     if (s.cat === 'papouille' || s.cat === 'tigrou') {
-      byDay[day][s.cat] += (s.delta_g || 0);
+      byDay[day][s.cat] += Math.round(s.delta_g || 0);
     }
   });
 

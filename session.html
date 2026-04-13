@@ -61,6 +61,45 @@
     margin-top: 8px;
   }
 
+  .session-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    margin-top: 12px;
+  }
+  .nav-arrow {
+    background: #16213e;
+    border: 1px solid #2a2a4a;
+    color: #e0e0e0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 1.4em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .nav-arrow:hover:not(.nav-disabled) {
+    background: #e9456022;
+    border-color: #e94560;
+    color: #e94560;
+  }
+  .nav-disabled {
+    opacity: 0.25;
+    cursor: default;
+    pointer-events: none;
+  }
+  .nav-label {
+    color: #666;
+    font-size: 0.8em;
+    text-align: center;
+    min-width: 80px;
+  }
+
   .cards {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -234,6 +273,9 @@ function showError(msg) {
     `<div class="error">Erreur : ${msg}</div>`;
 }
 
+let allSessionIds = [];
+let currentIndex = -1;
+
 async function loadSession() {
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
@@ -242,18 +284,22 @@ async function loadSession() {
     return;
   }
 
-  const { data, error } = await sb
-    .from('sessions')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const [sessionRes, listRes] = await Promise.all([
+    sb.from('sessions').select('*').eq('id', id).single(),
+    sb.from('sessions').select('id,start_time').not('is_error', 'eq', true).order('start_time', { ascending: true }),
+  ]);
 
-  if (error || !data) {
-    showError(error ? error.message : 'Session introuvable');
+  if (sessionRes.error || !sessionRes.data) {
+    showError(sessionRes.error ? sessionRes.error.message : 'Session introuvable');
     return;
   }
 
-  renderSession(data);
+  if (listRes.data) {
+    allSessionIds = listRes.data.map(r => r.id);
+    currentIndex = allSessionIds.indexOf(id);
+  }
+
+  renderSession(sessionRes.data);
 }
 
 function renderSession(s) {
@@ -272,6 +318,15 @@ function renderSession(s) {
     : `<div class="timelapse-box">
          <div class="label">Timelapse non disponible</div>
        </div>`;
+
+  const prevId = currentIndex > 0 ? allSessionIds[currentIndex - 1] : null;
+  const nextId = currentIndex >= 0 && currentIndex < allSessionIds.length - 1 ? allSessionIds[currentIndex + 1] : null;
+  const navBlock = `
+    <div class="session-nav">
+      <a class="nav-arrow ${prevId ? '' : 'nav-disabled'}" ${prevId ? `href="session.html?id=${encodeURIComponent(prevId)}"` : ''} title="Session precedente">&larr;</a>
+      <span class="nav-label">${currentIndex >= 0 ? `${currentIndex + 1} / ${allSessionIds.length}` : ''}</span>
+      <a class="nav-arrow ${nextId ? '' : 'nav-disabled'}" ${nextId ? `href="session.html?id=${encodeURIComponent(nextId)}"` : ''} title="Session suivante">&rarr;</a>
+    </div>`;
 
   document.getElementById('content').innerHTML = `
     <h1 class="h-${cat}">
@@ -299,6 +354,7 @@ function renderSession(s) {
     ` : ''}
 
     ${videoBlock}
+    ${navBlock}
 
     <div class="cards">
       <div class="card">

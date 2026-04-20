@@ -426,12 +426,12 @@ function enableSheetDrag() {
     sheet.style.transition    = '';
     backdrop.style.transition = '';
 
-    // Fermeture si :
-    //   - geste long : > 15% de la hauteur (ou 80 px min, pour les petits ecrans)
-    //   - flick rapide : velocite > 0.5 px/ms ET au moins 25 px
-    const distThreshold = Math.min(sheet.offsetHeight * 0.15, 80);
-    const FLICK_V       = 0.5;
-    const shouldClose   = (delta > distThreshold) || (velocity > FLICK_V && delta > 25);
+    // Fermeture plus permissive :
+    //   - geste lent : > 50 px (ou 10% de la hauteur, le plus petit)
+    //   - flick modere : velocite > 0.25 px/ms ET au moins 15 px
+    const distThreshold = Math.min(sheet.offsetHeight * 0.10, 50);
+    const FLICK_V       = 0.25;
+    const shouldClose   = (delta > distThreshold) || (velocity > FLICK_V && delta > 15);
 
     if (shouldClose) {
       // Anime jusqu'en bas puis nettoie a la fin de la transition

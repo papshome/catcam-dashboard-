@@ -38,6 +38,14 @@ function formatDurationMMSS(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// Chat effectif : la validation humaine l'emporte sur la prediction ML
+function effectiveCat(s) {
+  if (s.user_validated_cat && (s.user_validated_cat === 'papouille' || s.user_validated_cat === 'tigrou')) {
+    return s.user_validated_cat;
+  }
+  return s.cat;
+}
+
 function formatDayLabel(dateKey) {
   const [y, m, d] = dateKey.split('-').map(Number);
   const date = new Date(y, m - 1, d);
@@ -146,14 +154,15 @@ function renderTimeline(sessions) {
 }
 
 function buildSessionRow(s) {
-  const cfg = CATS[s.cat];
-  const catName = cfg?.label || (s.cat === 'incertain' ? 'Incertain' : (s.cat || '?'));
+  const effCat = effectiveCat(s);
+  const cfg = CATS[effCat];
+  const catName = cfg?.label || (effCat === 'incertain' ? 'Incertain' : (effCat || '?'));
   const avatar = cfg?.photo
     ? `<div class="session-avatar" style="background-image:url('${cfg.photo}')"></div>`
     : `<div class="session-avatar">?</div>`;
   const delta = Math.round(s.delta_g || 0);
   const dur   = formatDurationMMSS(s.duration_s);
-  const cls   = s.cat === 'incertain' ? 'session-row incertain' : 'session-row';
+  const cls   = (effCat === 'incertain') ? 'session-row incertain' : 'session-row';
   return `
     <button class="${cls}" data-id="${s.id}" aria-label="Ouvrir session ${catName} ${formatClock(s.start_time)}">
       <span class="session-time">${formatClock(s.start_time)}</span>
@@ -206,8 +215,9 @@ function dayLabelFromSession(s) {
 }
 
 function buildSheetContent(s) {
-  const cfg = CATS[s.cat];
-  const catLabel = cfg?.label || (s.cat === 'incertain' ? 'Incertain' : (s.cat || '?'));
+  const effCat = effectiveCat(s);
+  const cfg = CATS[effCat];
+  const catLabel = cfg?.label || (effCat === 'incertain' ? 'Incertain' : (effCat || '?'));
   const certainty = (s.certainty || '').toLowerCase();
   const certClass = ['high','med','low'].includes(certainty) ? certainty : 'low';
   const certText  = (s.certainty || '—').toUpperCase();
@@ -573,7 +583,7 @@ function buildWeightChartSvg(s) {
   const yAt = ml => padT + innerH - (ml / yMax) * innerH;
 
   // --- Accent chat ---
-  const accent = CATS[s.cat]?.accent || '#7BA889';
+  const accent = CATS[effectiveCat(s)]?.accent || '#7BA889';
   const gradId = 'w-grad-' + Math.random().toString(36).slice(2, 8);
 
   // --- Zone boisson : bornes de la courbe simplifiee ---

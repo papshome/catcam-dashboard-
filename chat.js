@@ -6,6 +6,14 @@ const SUPABASE_URL = 'https://pnkultqeijguvthjrehx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBua3VsdHFlaWpndXZ0aGpyZWh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NDE4NjYsImV4cCI6MjA4NTMxNzg2Nn0.TrD_cGc-VLBfBsMVXg2rInM2LPjLyhXxZFBjHJ2MB_8';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Chat effectif : validation humaine > prediction ML
+function effectiveCat(s) {
+  if (s.user_validated_cat && (s.user_validated_cat === 'papouille' || s.user_validated_cat === 'tigrou')) {
+    return s.user_validated_cat;
+  }
+  return s.cat;
+}
+
 const CATS = {
   papouille: { label: 'Papouille', accent: '#7BA889', normalRange: [25, 55] },
   tigrou:    { label: 'Tigrou',    accent: '#D9A95E', normalRange: [6, 20] },
@@ -103,7 +111,7 @@ function renderFountainPill(fill) {
 function computeProfileStats(sessions, catKey, periodDays) {
   const cutoff = Date.now() - periodDays * 24 * 60 * 60 * 1000;
   const valid = sessions.filter(s =>
-    s.cat === catKey && !s.is_error && new Date(s.start_time).getTime() >= cutoff
+    effectiveCat(s) === catKey && !s.is_error && new Date(s.start_time).getTime() >= cutoff
   );
 
   // Aggregation par jour (volume + count)

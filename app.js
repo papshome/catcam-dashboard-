@@ -8,6 +8,14 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Chat effectif : validation humaine > prediction ML
+function effectiveCat(s) {
+  if (s.user_validated_cat && (s.user_validated_cat === 'papouille' || s.user_validated_cat === 'tigrou')) {
+    return s.user_validated_cat;
+  }
+  return s.cat;
+}
+
 // Baselines v0 en dur. A remplacer par calcul ±1σ sur 4 semaines en v1.
 const CATS = {
   papouille: { label: 'Papouille', accent: '#7BA889', normalRange: [25, 55], hint: 'grand buveur',            photo: './assets/papouille.png' },
@@ -56,7 +64,7 @@ async function fetchSessions() {
 
 function computeCatStats(sessions, catKey) {
   const todayKey = localDateKey(new Date());
-  const valid = sessions.filter(s => s.cat === catKey && !s.is_error);
+  const valid = sessions.filter(s => effectiveCat(s) === catKey && !s.is_error);
 
   const byDay = {};
   valid.forEach(s => {
@@ -383,7 +391,8 @@ function renderRecentSessions(sessions) {
   }
 
   list.innerHTML = recent.map(s => {
-    const catLabel = CATS[s.cat]?.label || s.cat || '?';
+    const effCat = effectiveCat(s);
+    const catLabel = CATS[effCat]?.label || effCat || '?';
     const delta = Math.round(s.delta_g || 0);
     const coverStyle = s.cover_url ? `background-image:url('${s.cover_url}')` : '';
     const href = `./timeline.html?session=${encodeURIComponent(s.id)}`;

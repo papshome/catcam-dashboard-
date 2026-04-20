@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#FAF7F2" />
+  <title>CatCam — Profil</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            cream:  { 50: '#FDFBF7', 100: '#FAF7F2', 200: '#F2EDE4', 300: '#E8E1D3' },
+            ink:    { 900: '#1F1B16', 700: '#4A433A', 500: '#7A7368', 400: '#9A9285' },
+            calm:   { 50: '#EEF4EF', 200: '#C9DDCC', 500: '#7BA889', 700: '#4F7A5D' },
+            amber2: { 50: '#FBF3E4', 200: '#F0DDB0', 500: '#D9A95E', 700: '#A17526' },
+            rose:   { 500: '#C86C6C', 700: '#8C4343' },
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    html, body { background: #FAF7F2; }
+    body { font-family: 'Inter', system-ui, sans-serif; color: #1F1B16; -webkit-font-smoothing: antialiased; }
+    .viewport { max-width: 440px; margin: 0 auto; min-height: 100vh; }
+
+    /* ---- Header brand (identique home) ---- */
+    .brand-logo { height: 32px; width: auto; display: block; user-select: none; }
+    .fountain-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 11px 6px 9px;
+      background: #F2EDE4; border: 1px solid #E8E1D3;
+      border-radius: 999px;
+      font-size: 12px; font-weight: 700; color: #1F1B16;
+      letter-spacing: -0.01em;
+    }
+    .fountain-pill .drop { width: 14px; height: 14px; flex-shrink: 0; color: #7BA889; }
+    .fountain-pill.low    .drop { color: #D9A95E; }
+    .fountain-pill.empty  .drop { color: #C86C6C; }
+    .fountain-pill.low    { background: #FBF3E4; border-color: #F0DDB0; color: #A17526; }
+    .fountain-pill.empty  { background: #F6E2E2; border-color: #EBC5C5; color: #8C4343; }
+    .avatar-btn {
+      width: 44px; height: 44px; border-radius: 999px;
+      background: #F2EDE4; display: flex; align-items: center; justify-content: center;
+      color: #4A433A; flex-shrink: 0; border: 1px solid #E8E1D3;
+    }
+    .avatar-btn:hover { background: #E8E1D3; }
+
+    /* ---- Cat selector (2 photos pour switcher) ---- */
+    .cat-selector {
+      display: flex; gap: 12px;
+      padding: 0 20px;
+    }
+    .cat-pick {
+      flex: 1; min-width: 0;
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px;
+      background: #fff;
+      border-radius: 22px;
+      border: 2px solid transparent;
+      box-shadow: 0 1px 2px rgba(31,27,22,.03), 0 4px 12px rgba(31,27,22,.04);
+      cursor: pointer;
+      transition: opacity .15s ease, border-color .18s ease, transform .1s ease, background .15s ease;
+      color: inherit; text-decoration: none;
+    }
+    .cat-pick.inactive {
+      opacity: 0.5;
+      background: transparent;
+      box-shadow: none;
+    }
+    .cat-pick.inactive:hover { opacity: 0.8; }
+    .cat-pick:active { transform: translateY(1px); }
+    .cat-pick-photo {
+      width: 48px; height: 48px; border-radius: 999px;
+      background-size: cover; background-position: center; background-color: #F2EDE4;
+      flex-shrink: 0;
+      box-shadow: inset 0 0 0 2px #fff, 0 0 0 1px #E8E1D3;
+    }
+    .cat-pick-name { font-size: 15px; font-weight: 700; color: #1F1B16; letter-spacing: -0.01em; }
+    .cat-pick.inactive .cat-pick-name { font-weight: 500; color: #4A433A; }
+    .cat-pick-hint { font-size: 11px; color: #7A7368; margin-top: 2px; }
+
+    /* ---- Period tabs ---- */
+    .period-tabs {
+      display: inline-flex; gap: 4px;
+      padding: 3px;
+      background: #F2EDE4;
+      border-radius: 14px;
+    }
+    .period-tab {
+      padding: 5px 14px;
+      border-radius: 11px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #7A7368;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+    }
+    .period-tab.active {
+      background: #fff;
+      color: #1F1B16;
+      box-shadow: 0 1px 2px rgba(31,27,22,.06);
+    }
+    .period-tab:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ---- AI analysis card ---- */
+    .ai-card {
+      position: relative;
+      background: linear-gradient(135deg, #FDFBF7 0%, #F5EFE4 100%);
+      border: 1px solid #E8E1D3;
+      border-radius: 22px;
+      padding: 14px 16px;
+      overflow: hidden;
+    }
+    .ai-card::before {
+      content: '';
+      position: absolute;
+      top: -20px; right: -40px;
+      width: 180px; height: 180px;
+      background: radial-gradient(circle, rgba(123,168,137,0.12) 0%, rgba(123,168,137,0) 70%);
+      pointer-events: none;
+    }
+    .ai-card-head {
+      position: relative;
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 8px;
+    }
+    .ai-icon {
+      width: 32px; height: 32px; flex-shrink: 0;
+      border-radius: 10px;
+      background: #fff; border: 1px solid #E8E1D3;
+      display: flex; align-items: center; justify-content: center;
+      color: #4F7A5D;
+      box-shadow: 0 1px 2px rgba(31,27,22,.04);
+    }
+    .ai-title {
+      font-size: 13px; font-weight: 700; color: #1F1B16; letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .ai-subtitle {
+      font-size: 10.5px; color: #7A7368; font-weight: 500;
+      margin-top: 1px;
+    }
+    .ai-content {
+      position: relative;
+      font-size: 12.5px; line-height: 1.55;
+      color: #4A433A;
+    }
+    .ai-placeholder {
+      color: #7A7368;
+      font-style: italic;
+    }
+
+    /* ---- Stats grid ---- */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 2px rgba(31,27,22,.03), 0 4px 12px rgba(31,27,22,.04);
+    }
+    .stat-card .label {
+      font-size: 10.5px; color: #9A9285; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .stat-card .value {
+      font-size: 22px; font-weight: 700; color: #1F1B16;
+      margin-top: 6px; letter-spacing: -0.02em; line-height: 1.1;
+    }
+    .stat-card .value .u {
+      font-size: 12px; font-weight: 500; color: #7A7368; margin-left: 2px;
+    }
+    .stat-card .verdict {
+      font-size: 11px; font-weight: 600; color: #4F7A5D;
+      margin-top: 4px; letter-spacing: 0.01em;
+    }
+    .stat-card .verdict.watch { color: #A17526; }
+    .stat-card .verdict.alert { color: #8C4343; }
+
+    /* ---- Big chart card ---- */
+    .chart-card {
+      background: #fff;
+      border-radius: 22px;
+      padding: 14px 16px 12px;
+      box-shadow: 0 1px 2px rgba(31,27,22,.03), 0 4px 12px rgba(31,27,22,.04);
+    }
+    .chart-card-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 10px;
+    }
+    .chart-card-title { font-size: 14px; font-weight: 700; color: #1F1B16; letter-spacing: -0.01em; }
+    .chart-card-unit { font-size: 11px; color: #9A9285; font-weight: 500; }
+    .chart-30 {
+      height: 100px;
+      position: relative;
+    }
+    .chart-30 svg { width: 100%; height: 100%; display: block; }
+    .chart-dates {
+      display: flex; justify-content: space-between;
+      font-size: 10px; color: #9A9285; font-weight: 500;
+      margin-top: 6px;
+    }
+
+    /* ---- Heatmap card ---- */
+    .heatmap-card {
+      background: #fff;
+      border-radius: 22px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 2px rgba(31,27,22,.03), 0 4px 12px rgba(31,27,22,.04);
+    }
+    .heatmap-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .heatmap-title { font-size: 14px; font-weight: 700; color: #1F1B16; letter-spacing: -0.01em; }
+    .heatmap-hint { font-size: 11px; color: #9A9285; }
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: repeat(24, 1fr);
+      gap: 2px;
+      margin-top: 10px;
+    }
+    .heatmap-cell {
+      aspect-ratio: 1;
+      border-radius: 3px;
+      background: #E8E1D3;
+    }
+    .heatmap-hours {
+      display: flex; justify-content: space-between;
+      margin-top: 6px;
+      font-size: 10px; color: #9A9285; font-weight: 500;
+    }
+
+    /* ---- Section label ---- */
+    .section-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.12em; color: #9A9285;
+    }
+
+    /* ---- Bottom nav (identique home) ---- */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      background: linear-gradient(to top, rgba(250,247,242,.95) 55%, rgba(250,247,242,0));
+      pointer-events: none;
+    }
+    .bottom-nav-inner {
+      max-width: 440px; margin: 0 auto;
+      padding: 10px 16px 16px;
+      pointer-events: auto;
+    }
+    .bottom-nav-bar {
+      background: #fff;
+      border: 1px solid #F2EDE4;
+      border-radius: 28px;
+      box-shadow: 0 2px 6px rgba(31,27,22,.05), 0 14px 32px rgba(31,27,22,.07);
+      padding: 8px 6px;
+      display: flex; align-items: center; justify-content: space-around;
+    }
+    .bottom-nav-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 6px 4px; color: #9A9285; background: transparent; border: 0; cursor: pointer;
+      border-radius: 18px; transition: color .15s ease, background-color .15s ease;
+      text-decoration: none;
+    }
+    .bottom-nav-btn:hover:not([disabled]) { color: #4A433A; }
+    .bottom-nav-btn span { font-size: 10.5px; margin-top: 4px; font-weight: 500; letter-spacing: 0.01em; }
+    .bottom-nav-btn.active { color: #1F1B16; background: #FAF7F2; }
+    .bottom-nav-btn.active span { font-weight: 700; }
+    .bottom-nav-btn.active svg { stroke-width: 2.4; }
+  </style>
+</head>
+
+<body>
+
+  <div class="viewport pb-28">
+
+    <!-- Header (brand + fountain % + avatar) -->
+    <header class="px-5 pt-6 pb-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="./index.html"><img src="./assets/logo.png" alt="PurrSense" class="brand-logo" /></a>
+        <div id="fountain-pill" class="fountain-pill" style="display:none;" title="Niveau estime de la fontaine">
+          <svg class="drop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 2.5c-.4 0-.77.18-1.02.5C8.9 5.58 4 12 4 15.5a8 8 0 0 0 16 0c0-3.5-4.9-9.92-6.98-12.5A1.3 1.3 0 0 0 12 2.5z"/>
+          </svg>
+          <span id="fountain-pct-text">--%</span>
+        </div>
+      </div>
+      <button class="avatar-btn" aria-label="Reglages">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="4"></circle>
+          <path d="M4 22c0-4 4-7 8-7s8 3 8 7"></path>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Cat selector : photos Papouille / Tigrou -->
+    <section class="cat-selector">
+      <button class="cat-pick active" data-cat="papouille" aria-label="Afficher Papouille">
+        <div class="cat-pick-photo" style="background-image:url('./assets/papouille.png');"></div>
+        <div class="min-w-0">
+          <p class="cat-pick-name">Papouille</p>
+          <p class="cat-pick-hint">grand buveur</p>
+        </div>
+      </button>
+      <button class="cat-pick inactive" data-cat="tigrou" aria-label="Afficher Tigrou">
+        <div class="cat-pick-photo" style="background-image:url('./assets/tigrou.png');"></div>
+        <div class="min-w-0">
+          <p class="cat-pick-name">Tigrou</p>
+          <p class="cat-pick-hint">petit buveur</p>
+        </div>
+      </button>
+    </section>
+
+    <!-- Period tabs -->
+    <section class="px-5 mt-5 flex items-center justify-between">
+      <div class="period-tabs" role="tablist">
+        <button class="period-tab" data-period="30">30 j</button>
+        <button class="period-tab active" data-period="7">7 j</button>
+        <button class="period-tab" data-period="0" disabled title="A venir">Tout</button>
+      </div>
+      <span class="section-label" id="session-count">—</span>
+    </section>
+
+    <!-- AI analysis -->
+    <section class="px-5 mt-4">
+      <div class="ai-card">
+        <div class="ai-card-head">
+          <div class="ai-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3l1.6 4.3L18 9l-4.4 1.7L12 15l-1.6-4.3L6 9l4.4-1.7z"/>
+              <path d="M19 14l.7 1.9L22 17l-2.3.9L19 20l-.7-2.1L16 17l2.3-1.1z"/>
+              <path d="M6 18l.5 1.3L8 20l-1.5.5L6 22l-.5-1.5L4 20l1.5-.7z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="ai-title">Analyse intelligente</div>
+            <div class="ai-subtitle" id="ai-period-sub">Derniers 7 jours</div>
+          </div>
+        </div>
+        <div class="ai-content" id="ai-content">
+          <p class="ai-placeholder">Bientot : observations automatiques sur son comportement, tendances et signaux inhabituels sur la periode.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats grid 2x2 -->
+    <section class="px-5 mt-4">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="label">Volume moy.</div>
+          <div class="value" id="stat-volume">—</div>
+          <div class="verdict" id="stat-volume-verdict">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Duree moy.</div>
+          <div class="value" id="stat-duration">—</div>
+          <div class="verdict" id="stat-duration-verdict">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Rythme median</div>
+          <div class="value" id="stat-rate">—</div>
+          <div class="verdict" id="stat-rate-verdict">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Sessions / j</div>
+          <div class="value" id="stat-sessions">—</div>
+          <div class="verdict" id="stat-sessions-verdict">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Volume chart -->
+    <section class="px-5 mt-4">
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <span class="chart-card-title" id="chart-title">Volume sur 7 jours</span>
+          <span class="chart-card-unit">ml / jour</span>
+        </div>
+        <div class="chart-30" id="volume-chart"></div>
+        <div class="chart-dates">
+          <span id="chart-date-start">—</span>
+          <span id="chart-date-end">auj.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Heatmap -->
+    <section class="px-5 mt-4">
+      <div class="heatmap-card">
+        <div class="heatmap-head">
+          <span class="heatmap-title">Heures ou il boit</span>
+          <span class="heatmap-hint" id="heatmap-hint">sessions / heure</span>
+        </div>
+        <div class="heatmap-grid" id="heatmap-grid"></div>
+        <div class="heatmap-hours">
+          <span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>24h</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <div class="bottom-nav-bar">
+        <a class="bottom-nav-btn" href="./index.html" aria-label="Accueil">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span>Accueil</span>
+        </a>
+        <button class="bottom-nav-btn active" aria-label="Chats">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          <span>Chats</span>
+        </button>
+        <a class="bottom-nav-btn" href="./timeline.html" aria-label="Timeline">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Timeline</span>
+        </a>
+        <button class="bottom-nav-btn" aria-label="Reglages" disabled>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.08 7.08l4.24 4.24M1 12h6m10 0h6M4.22 19.78l4.24-4.24m7.08-7.08l4.24-4.24"/></svg>
+          <span>Reglages</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <script src="./chat.js"></script>
+</body>
+</html>

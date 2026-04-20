@@ -1,529 +1,376 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CatCam - Hydratation</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #0f0f1a;
-    color: #e0e0e0;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    padding: 16px;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-  h1 {
-    text-align: center;
-    margin-bottom: 4px;
-    color: #e94560;
-    font-size: 1.8em;
-  }
-  .subtitle {
-    text-align: center;
-    color: #888;
-    margin-bottom: 24px;
-    font-size: 0.85em;
-  }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#FAF7F2" />
+  <title>CatCam</title>
 
-  /* Alertes */
-  .alerts { margin-bottom: 20px; }
-  .alert {
-    background: #1a1a2e;
-    border-left: 4px solid #f44336;
-    padding: 12px 16px;
-    border-radius: 6px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .alert-info { border-left-color: #ffc107; }
-  .alert-ok { border-left-color: #4caf50; }
-  .alert-icon {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #f44336;
-    animation: pulse 1.5s infinite;
-  }
-  .alert-info .alert-icon { background: #ffc107; animation: none; }
-  .alert-ok .alert-icon { background: #4caf50; animation: none; }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.3); }
-  }
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  /* Two columns par chat */
-  .two-col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 20px;
-  }
-  @media (max-width: 700px) {
-    .two-col { grid-template-columns: 1fr; }
-  }
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  .col {
-    background: #1a1a2e;
-    border-radius: 12px;
-    padding: 18px;
-    border: 1px solid #2a2a4a;
-  }
-  .col h2 {
-    margin-bottom: 14px;
-    font-size: 1.15em;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .col-papouille h2 { color: #4fc3f7; }
-  .col-tigrou h2 { color: #ffb74d; }
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            cream:  { 50: '#FDFBF7', 100: '#FAF7F2', 200: '#F2EDE4', 300: '#E8E1D3' },
+            ink:    { 900: '#1F1B16', 700: '#4A433A', 500: '#7A7368', 400: '#9A9285' },
+            calm:   { 50: '#EEF4EF', 200: '#C9DDCC', 500: '#7BA889', 700: '#4F7A5D' },
+            amber2: { 50: '#FBF3E4', 200: '#F0DDB0', 500: '#D9A95E', 700: '#A17526' },
+            rose:   { 500: '#C86C6C', 700: '#8C4343' },
+          },
+        },
+      },
+    };
+  </script>
 
-  .cards {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .card {
-    background: #16213e;
-    border-radius: 8px;
-    padding: 12px;
-    text-align: center;
-  }
-  .card .value {
-    font-size: 1.4em;
-    font-weight: bold;
-  }
-  .card .label {
-    color: #888;
-    margin-top: 4px;
-    font-size: 0.75em;
-  }
-  .val-papouille { color: #4fc3f7; }
-  .val-tigrou { color: #ffb74d; }
-  .val-green { color: #4caf50; }
-  .val-yellow { color: #ffc107; }
-  .val-red { color: #f44336; }
-  .last-visit {
-    grid-column: 1 / -1;
-    color: #888;
-    text-align: center;
-    margin-top: 6px;
-    font-size: 0.8em;
-  }
+  <style>
+    html, body { background: #FAF7F2; }
+    body { font-family: 'Inter', system-ui, sans-serif; color: #1F1B16; -webkit-font-smoothing: antialiased; }
 
-  /* Section graphique */
-  section {
-    background: #1a1a2e;
-    border-radius: 12px;
-    padding: 18px;
-    margin-bottom: 20px;
-    border: 1px solid #2a2a4a;
-  }
-  section h2 {
-    color: #e94560;
-    margin-bottom: 12px;
-    font-size: 1.1em;
-  }
-  canvas { max-height: 280px; }
-  .legend {
-    text-align: center;
-    margin-bottom: 10px;
-    font-size: 0.8em;
-    color: #888;
-  }
-  .legend-box {
-    display: inline-block;
-    width: 10px; height: 10px;
-    border-radius: 2px;
-    margin-right: 5px;
-    vertical-align: middle;
-  }
+    .viewport { max-width: 440px; margin: 0 auto; min-height: 100vh; }
 
-  /* Table */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.78em;
-  }
-  th {
-    background: #16213e;
-    color: #e94560;
-    padding: 8px 6px;
-    text-align: left;
-    position: sticky;
-    top: 0;
-  }
-  td {
-    padding: 6px;
-    border-bottom: 1px solid #2a2a4a;
-  }
-  .table-wrap { max-height: 350px; overflow-y: auto; }
-  .cat-tag {
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.85em;
-    font-weight: 600;
-  }
-  .cat-papouille { background: #4fc3f722; color: #4fc3f7; }
-  .cat-tigrou { background: #ffb74d22; color: #ffb74d; }
-  .cat-erreur { background: #88888822; color: #888; }
+    /* ---- Header brand ---- */
+    .brand-logo {
+      height: 32px;
+      width: auto;
+      display: block;
+      user-select: none;
+    }
+    .fountain-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 11px 6px 9px;
+      background: #F2EDE4; border: 1px solid #E8E1D3;
+      border-radius: 999px;
+      font-size: 12px; font-weight: 700; color: #1F1B16;
+      letter-spacing: -0.01em;
+    }
+    .fountain-pill .drop { width: 14px; height: 14px; flex-shrink: 0; color: #7BA889; }
+    .fountain-pill.low    .drop { color: #D9A95E; }
+    .fountain-pill.empty  .drop { color: #C86C6C; }
+    .fountain-pill.low    { background: #FBF3E4; border-color: #F0DDB0; color: #A17526; }
+    .fountain-pill.empty  { background: #F6E2E2; border-color: #EBC5C5; color: #8C4343; }
+    .avatar-btn {
+      width: 44px; height: 44px; border-radius: 999px;
+      background: #F2EDE4; display: flex; align-items: center; justify-content: center;
+      color: #4A433A; flex-shrink: 0; border: 1px solid #E8E1D3;
+    }
+    .avatar-btn:hover { background: #E8E1D3; }
 
-  .loading {
-    text-align: center;
-    padding: 40px;
-    color: #888;
-  }
-  .error-msg {
-    background: #f4433622;
-    border-left: 4px solid #f44336;
-    padding: 12px;
-    border-radius: 6px;
-    margin: 16px 0;
-    color: #ff8a80;
-  }
-</style>
+    /* ---- Cat cards ---- */
+    .cat-card {
+      background: #fff;
+      border-radius: 28px;
+      padding: 20px 20px 16px;
+      box-shadow: 0 1px 2px rgba(31,27,22,.03), 0 8px 24px rgba(31,27,22,.05);
+      display: block;
+      color: inherit;
+      text-decoration: none;
+      position: relative;
+      transition: box-shadow .18s ease;
+    }
+    .cat-card:hover {
+      box-shadow: 0 2px 6px rgba(31,27,22,.06), 0 16px 32px rgba(31,27,22,.07);
+    }
+    .cat-card:active { transform: translateY(1px); }
+    .cat-chevron-icon {
+      color: #BCB3A4;
+      opacity: 0.55;
+      flex-shrink: 0;
+      transition: transform .18s ease, opacity .15s ease;
+    }
+    .cat-card:hover .cat-chevron-icon {
+      opacity: 0.95;
+      transform: translateX(3px);
+    }
+    .cat-card + .cat-card { margin-top: 14px; }
+    .cat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .cat-head-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .cat-avatar {
+      width: 48px; height: 48px; border-radius: 999px; flex-shrink: 0;
+      background: #F2EDE4 center/cover no-repeat;
+      box-shadow: inset 0 0 0 2px #fff, 0 0 0 1px #E8E1D3;
+    }
+    .cat-avatar.skeleton { background-color: #F2EDE4; }
+    .cat-name { font-size: 19px; font-weight: 700; color: #1F1B16; letter-spacing: -0.01em; line-height: 1.1; }
+    .cat-sub {
+      font-size: 12.5px; color: #7A7368; margin-top: 4px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .cat-sub .dot { width: 6px; height: 6px; border-radius: 999px; background: #7BA889; flex-shrink: 0; }
+    .cat-sub .dot.watch { background: #D9A95E; }
+    .cat-sub .dot.off { background: #9A9285; }
+
+    .cat-value {
+      text-align: right; flex-shrink: 0;
+    }
+    .cat-value .num {
+      font-size: 34px; font-weight: 700; color: #1F1B16;
+      letter-spacing: -0.03em; line-height: 1;
+    }
+    .cat-value .unit { font-size: 15px; font-weight: 500; color: #7A7368; margin-left: 2px; }
+    .cat-value .label {
+      font-size: 10.5px; color: #9A9285; margin-top: 4px;
+      text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500;
+    }
+
+    .cat-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 14px; font-size: 12px; color: #7A7368;
+    }
+    .cat-meta b { color: #1F1B16; font-weight: 600; }
+
+    /* ---- Body : chart full width ---- */
+    .cat-body {
+      margin-top: 14px;
+    }
+
+    /* ---- Chart area ---- */
+    .chart-wrap {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 128px;
+      display: flex;
+      flex-direction: column;
+    }
+    .plot-row {
+      flex: 1 1 auto;
+      display: flex;
+      gap: 4px;
+      min-height: 0;
+    }
+    .y-axis {
+      width: 22px;
+      flex-shrink: 0;
+      position: relative;
+      pointer-events: none;
+    }
+    .y-axis .y-unit {
+      position: absolute; top: 0; right: 0;
+      font-size: 9px; color: #9A9285; font-weight: 600;
+      text-transform: lowercase; letter-spacing: 0.02em;
+    }
+    .y-axis .y-tick {
+      position: absolute; right: 0;
+      transform: translateY(-50%);
+      font-size: 9.5px; color: #9A9285; font-weight: 500;
+      white-space: nowrap;
+    }
+    .chart-plot {
+      flex: 1 1 auto;
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+    }
+    .chart-plot svg { display: block; width: 100%; height: 100%; }
+    .avg-label {
+      position: absolute;
+      left: 4px;
+      transform: translateY(-50%);
+      font-size: 10px; color: #4A433A;
+      background: rgba(255,255,255,0.45);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      padding: 2px 7px; border-radius: 8px;
+      font-weight: 600; pointer-events: none;
+      border: 1px solid rgba(242,237,228,0.6);
+      white-space: nowrap;
+      z-index: 2;
+    }
+    .today-pill {
+      position: absolute;
+      transform: translateY(calc(-100% - 10px));
+      background: rgba(31,27,22,0.75);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      color: #fff;
+      font-size: 10.5px; font-weight: 600;
+      padding: 3px 9px; border-radius: 999px;
+      pointer-events: none; white-space: nowrap;
+      z-index: 3; letter-spacing: 0.01em;
+    }
+    .day-dot {
+      position: absolute;
+      width: 7px; height: 7px;
+      border-radius: 999px;
+      transform: translate(50%, -50%);
+      pointer-events: none;
+      z-index: 1;
+      box-sizing: border-box;
+      border: 1.5px solid #fff;
+    }
+    .day-dot.today { z-index: 2; }
+    .day-labels {
+      position: relative;
+      height: 16px;
+      flex-shrink: 0;
+      margin-top: 6px;
+      padding-left: 26px; /* aligne avec le chart-plot (y-axis 22 + gap 4) */
+    }
+    .day-labels span {
+      position: absolute;
+      transform: translateX(50%);
+      font-size: 11px; color: #9A9285; font-weight: 500;
+      white-space: nowrap;
+    }
+    .day-labels span.today { color: #1F1B16; font-weight: 600; }
+
+    /* ---- Section labels ---- */
+    .section-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.12em; color: #9A9285;
+    }
+    .link-soft { font-size: 12px; color: #7A7368; }
+    .link-soft:hover { color: #1F1B16; }
+
+    /* ---- Recent sessions list ---- */
+    .recent-list {
+      background: #fff; border-radius: 22px; overflow: hidden;
+      box-shadow: 0 1px 2px rgba(31,27,22,.03), 0 6px 18px rgba(31,27,22,.04);
+    }
+    .recent-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px 12px 12px;
+      color: inherit; text-decoration: none;
+      transition: background-color .12s ease;
+    }
+    .recent-item + .recent-item { border-top: 1px solid #F2EDE4; }
+    .recent-item:hover  { background: #FAF7F2; }
+    .recent-item:active { background: #F2EDE4; }
+    .ls-cover {
+      width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+      background-size: cover; background-position: center; background-color: #F2EDE4;
+    }
+    .ls-title { font-size: 15px; font-weight: 600; color: #1F1B16; line-height: 1.2; }
+    .ls-sub   { font-size: 12px; color: #7A7368; margin-top: 3px; }
+    .ls-chev  { color: #9A9285; padding-right: 4px; flex-shrink: 0; }
+    .recent-empty {
+      padding: 22px 16px; text-align: center;
+      font-size: 13px; color: #7A7368;
+    }
+    .recent-count {
+      font-size: 11px; font-weight: 600; color: #9A9285;
+      margin-left: 6px; letter-spacing: 0.02em; text-transform: none;
+    }
+
+    /* ---- Skeleton ---- */
+    @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+    .skeleton {
+      background: linear-gradient(90deg, #F2EDE4 0%, #FAF7F2 50%, #F2EDE4 100%);
+      background-size: 400px 100%; animation: shimmer 1.4s infinite linear; border-radius: 12px;
+    }
+
+    /* ---- Bottom nav (conteneur blanc arrondi, type "pill bar") ---- */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      background: linear-gradient(to top, rgba(250,247,242,.95) 55%, rgba(250,247,242,0));
+      pointer-events: none;
+    }
+    .bottom-nav-inner {
+      max-width: 440px; margin: 0 auto;
+      padding: 10px 16px 16px;
+      pointer-events: auto;
+    }
+    .bottom-nav-bar {
+      background: #fff;
+      border: 1px solid #F2EDE4;
+      border-radius: 28px;
+      box-shadow: 0 2px 6px rgba(31,27,22,.05), 0 14px 32px rgba(31,27,22,.07);
+      padding: 8px 6px;
+      display: flex; align-items: center; justify-content: space-around;
+    }
+    .bottom-nav-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 6px 4px; color: #9A9285; background: transparent; border: 0; cursor: pointer;
+      border-radius: 18px; transition: color .15s ease, background-color .15s ease;
+      position: relative;
+    }
+    .bottom-nav-btn:hover:not([disabled]) { color: #4A433A; }
+    .bottom-nav-btn span { font-size: 10.5px; margin-top: 4px; font-weight: 500; letter-spacing: 0.01em; }
+    .bottom-nav-btn.active { color: #1F1B16; background: #FAF7F2; }
+    .bottom-nav-btn.active span { font-weight: 700; }
+    .bottom-nav-btn.active svg { stroke-width: 2.4; }
+  </style>
 </head>
+
 <body>
 
-<h1>CatCam Hydratation</h1>
-<p class="subtitle" id="subtitle">Chargement...</p>
+  <div class="viewport pb-28">
 
-<div id="alertsContainer" class="alerts"></div>
+    <!-- Header (brand + fountain % + avatar) -->
+    <header class="px-5 pt-6 pb-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="./assets/logo.png" alt="PurrSense" class="brand-logo" />
+        <div id="fountain-pill" class="fountain-pill" style="display:none;" title="Niveau estime de la fontaine">
+          <svg class="drop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 2.5c-.4 0-.77.18-1.02.5C8.9 5.58 4 12 4 15.5a8 8 0 0 0 16 0c0-3.5-4.9-9.92-6.98-12.5A1.3 1.3 0 0 0 12 2.5z"/>
+          </svg>
+          <span id="fountain-pct-text">--%</span>
+        </div>
+      </div>
+      <button class="avatar-btn" aria-label="Reglages">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="4"></circle>
+          <path d="M4 22c0-4 4-7 8-7s8 3 8 7"></path>
+        </svg>
+      </button>
+    </header>
 
-<div id="content" style="display:none;">
+    <!-- Cartes chats -->
+    <section class="px-5 mt-3" id="cats-container">
+      <div class="cat-card skeleton" style="height:220px;"></div>
+      <div class="cat-card skeleton" style="height:220px; margin-top:14px;"></div>
+    </section>
 
-<div class="two-col">
-  <div class="col col-papouille">
-    <h2>Papouille (7.0 kg)</h2>
-    <div class="cards">
-      <div class="card"><div class="value val-papouille" id="papWater">-</div><div class="label">Eau 7j</div></div>
-      <div class="card"><div class="value val-papouille" id="papVisits">-</div><div class="label">Visites/jour</div></div>
-      <div class="card"><div class="value val-papouille" id="papDur">-</div><div class="label">Duree moy.</div></div>
-      <div class="card"><div class="value" id="papMlKg">-</div><div class="label">ml/kg/jour</div></div>
-      <div class="last-visit" id="papLast"></div>
+    <!-- Sessions des dernieres 24h -->
+    <section class="px-5 mt-6">
+      <div class="flex items-center justify-between mb-2 px-1">
+        <h2 class="section-label">
+          Dernieres 24h
+          <span class="recent-count" id="recent-count"></span>
+        </h2>
+        <button class="link-soft" id="btn-see-timeline">Tout voir</button>
+      </div>
+      <div id="recent-list" class="recent-list">
+        <div class="recent-empty">Chargement...</div>
+      </div>
+    </section>
+
+    <p id="footer-info" class="text-center text-[11px] text-ink-400 mt-8 px-5"></p>
+
+  </div>
+
+  <!-- Bottom nav (conteneur blanc arrondi) -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <div class="bottom-nav-bar">
+      <button class="bottom-nav-btn active" aria-label="Accueil">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <span>Accueil</span>
+      </button>
+      <a class="bottom-nav-btn" href="./chat.html?id=papouille" aria-label="Chats">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        <span>Chats</span>
+      </a>
+      <a class="bottom-nav-btn" href="./timeline.html" aria-label="Timeline">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>Timeline</span>
+      </a>
+      <button class="bottom-nav-btn" aria-label="Reglages" disabled>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.08 7.08l4.24 4.24M1 12h6m10 0h6M4.22 19.78l4.24-4.24m7.08-7.08l4.24-4.24"/></svg>
+        <span>Reglages</span>
+      </button>
+      </div>
     </div>
-  </div>
-  <div class="col col-tigrou">
-    <h2>Tigrou (4.2 kg)</h2>
-    <div class="cards">
-      <div class="card"><div class="value val-tigrou" id="tigWater">-</div><div class="label">Eau 7j</div></div>
-      <div class="card"><div class="value val-tigrou" id="tigVisits">-</div><div class="label">Visites/jour</div></div>
-      <div class="card"><div class="value val-tigrou" id="tigDur">-</div><div class="label">Duree moy.</div></div>
-      <div class="card"><div class="value" id="tigMlKg">-</div><div class="label">ml/kg/jour</div></div>
-      <div class="last-visit" id="tigLast"></div>
-    </div>
-  </div>
-</div>
+  </nav>
 
-<section>
-  <h2>Eau bue par jour (7 derniers jours)</h2>
-  <div class="legend">
-    <span><span class="legend-box" style="background:#4fc3f7"></span>Papouille</span>
-    &nbsp;&nbsp;
-    <span><span class="legend-box" style="background:#ffb74d"></span>Tigrou</span>
-  </div>
-  <canvas id="waterDailyChart"></canvas>
-</section>
-
-<section>
-  <h2>Sessions recentes</h2>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th><th>Heure</th><th>Chat</th><th>Duree</th><th>Eau</th><th>Conf.</th>
-        </tr>
-      </thead>
-      <tbody id="tableBody"></tbody>
-    </table>
-  </div>
-</section>
-
-</div>
-
-<script>
-// ===========================================
-// CONFIG SUPABASE
-// ===========================================
-const SUPABASE_URL = 'https://pnkultqeijguvthjrehx.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBua3VsdHFlaWpndXZ0aGpyZWh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NDE4NjYsImV4cCI6MjA4NTMxNzg2Nn0.TrD_cGc-VLBfBsMVXg2rInM2LPjLyhXxZFBjHJ2MB_8';
-
-// Poids des chats (kg) pour calculs ml/kg/jour
-const CAT_WEIGHTS = {
-  papouille: 7.0,
-  tigrou: 4.2,
-};
-
-// Seuils ml/kg/jour
-const HYDRATION_NORMAL_LOW  = 40;
-const HYDRATION_NORMAL_HIGH = 60;
-const HYDRATION_VIGILANCE   = 80;
-
-const PAP = '#4fc3f7';
-const TIG = '#ffb74d';
-const gridColor = '#2a2a4a';
-const tickColor = '#888';
-
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// ===========================================
-// LOAD + DISPLAY
-// ===========================================
-
-function formatDuration(seconds) {
-  if (!seconds || seconds < 0) return '-';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  if (m === 0) return `${s}s`;
-  return `${m}m${s.toString().padStart(2, '0')}s`;
-}
-
-function formatDateTime(iso) {
-  const d = new Date(iso);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yy = String(d.getFullYear()).slice(2);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return {
-    date: `${dd}/${mm}/${yy}`,
-    time: `${hh}:${min}`,
-  };
-}
-
-function hydrationColor(mlKg) {
-  if (mlKg >= HYDRATION_VIGILANCE) return 'val-red';
-  if (mlKg >= HYDRATION_NORMAL_HIGH) return 'val-yellow';
-  if (mlKg >= HYDRATION_NORMAL_LOW) return 'val-green';
-  return 'val-yellow';
-}
-
-function showError(msg) {
-  document.getElementById('subtitle').textContent = 'Erreur de chargement';
-  const errorDiv = document.createElement('div');
-  errorDiv.className = 'error-msg';
-  errorDiv.textContent = msg;
-  document.getElementById('alertsContainer').appendChild(errorDiv);
-}
-
-async function loadSessions() {
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-  const { data, error } = await sb
-    .from('sessions')
-    .select('*')
-    .gte('start_time', sevenDaysAgo)
-    .order('start_time', { ascending: false });
-
-  if (error) {
-    showError(`Supabase: ${error.message}`);
-    return;
-  }
-
-  if (!data || data.length === 0) {
-    showError('Aucune session trouvee dans les 7 derniers jours');
-    return;
-  }
-
-  renderDashboard(data);
-}
-
-function renderDashboard(sessions) {
-  // Filtrer les erreurs balance pour les stats
-  const valid = sessions.filter(s => !s.is_error && s.cat !== 'erreur' && s.cat !== 'incertain');
-
-  // Stats par chat
-  const stats = computeStats(valid, 'papouille');
-  const stats2 = computeStats(valid, 'tigrou');
-
-  // Cards Papouille
-  document.getElementById('papWater').textContent = `${Math.round(stats.totalWater)}g`;
-  document.getElementById('papVisits').textContent = stats.visitsPerDay.toFixed(1);
-  document.getElementById('papDur').textContent = formatDuration(stats.avgDuration);
-  const papMl = document.getElementById('papMlKg');
-  papMl.textContent = stats.mlKgDay.toFixed(1);
-  papMl.classList.add(hydrationColor(stats.mlKgDay));
-  document.getElementById('papLast').textContent = stats.lastVisit
-    ? `Derniere visite : ${stats.lastVisit}` : '';
-
-  // Cards Tigrou
-  document.getElementById('tigWater').textContent = `${Math.round(stats2.totalWater)}g`;
-  document.getElementById('tigVisits').textContent = stats2.visitsPerDay.toFixed(1);
-  document.getElementById('tigDur').textContent = formatDuration(stats2.avgDuration);
-  const tigMl = document.getElementById('tigMlKg');
-  tigMl.textContent = stats2.mlKgDay.toFixed(1);
-  tigMl.classList.add(hydrationColor(stats2.mlKgDay));
-  document.getElementById('tigLast').textContent = stats2.lastVisit
-    ? `Derniere visite : ${stats2.lastVisit}` : '';
-
-  // Alertes
-  renderAlerts(stats, stats2, sessions);
-
-  // Graphique eau par jour
-  renderWaterChart(valid);
-
-  // Table sessions
-  renderTable(sessions);
-
-  // Subtitle
-  const now = new Date();
-  const nowStr = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getFullYear()).slice(2)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  document.getElementById('subtitle').textContent =
-    `${sessions.length} sessions sur 7 jours | Mis a jour ${nowStr}`;
-  document.getElementById('content').style.display = 'block';
-}
-
-function computeStats(sessions, cat) {
-  const filtered = sessions.filter(s => s.cat === cat);
-  if (filtered.length === 0) {
-    return {
-      totalWater: 0, visitsPerDay: 0, avgDuration: 0,
-      mlKgDay: 0, lastVisit: null,
-    };
-  }
-
-  const totalWater = filtered.reduce((sum, s) => sum + Math.round(s.delta_g || 0), 0);
-  const visitsPerDay = filtered.length / 7;
-  const avgDuration = filtered.reduce((sum, s) => sum + (s.duration_s || 0), 0) / filtered.length;
-  const mlKgDay = (totalWater / 7) / CAT_WEIGHTS[cat];
-
-  // Derniere visite (les sessions sont deja triees DESC)
-  const last = filtered[0];
-  const lastDt = formatDateTime(last.start_time);
-  const lastVisit = `${lastDt.date} a ${lastDt.time}`;
-
-  return { totalWater, visitsPerDay, avgDuration, mlKgDay, lastVisit };
-}
-
-function renderAlerts(papStats, tigStats, allSessions) {
-  const container = document.getElementById('alertsContainer');
-  container.innerHTML = '';
-
-  // Hydratation anormale
-  function checkHydration(stats, name) {
-    if (stats.mlKgDay >= HYDRATION_VIGILANCE) {
-      addAlert(`${name} : hydratation elevee (${stats.mlKgDay.toFixed(1)} ml/kg/jour) - polydipsie possible`, 'alert');
-    } else if (stats.mlKgDay > 0 && stats.mlKgDay < HYDRATION_NORMAL_LOW) {
-      addAlert(`${name} : hydratation faible (${stats.mlKgDay.toFixed(1)} ml/kg/jour)`, 'alert-info');
-    }
-  }
-  checkHydration(papStats, 'Papouille');
-  checkHydration(tigStats, 'Tigrou');
-
-  // Sessions erreur balance
-  const nbErreurs = allSessions.filter(s => s.is_error || s.cat === 'erreur').length;
-  if (nbErreurs > 0) {
-    addAlert(`${nbErreurs} session(s) marquee(s) comme erreur balance (delta > 100g)`, 'alert-info');
-  }
-
-  // Sessions incertaines
-  const nbIncertain = allSessions.filter(s => s.cat === 'incertain').length;
-  if (nbIncertain > 0) {
-    addAlert(`${nbIncertain} session(s) incertaine(s) a relabel manuel`, 'alert-info');
-  }
-
-  if (container.children.length === 0) {
-    addAlert('Tout va bien : aucune anomalie detectee', 'alert-ok');
-  }
-}
-
-function addAlert(text, cls) {
-  const div = document.createElement('div');
-  div.className = `alert ${cls === 'alert' ? '' : cls}`;
-  div.innerHTML = `<div class="alert-icon"></div><div>${text}</div>`;
-  document.getElementById('alertsContainer').appendChild(div);
-}
-
-function localDateKey(d) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function renderWaterChart(validSessions) {
-  // Aggreger par jour x chat (en heure LOCALE, pas UTC)
-  // On arrondit chaque session AVANT de sommer pour matcher le tableau
-  const byDay = {};
-  validSessions.forEach(s => {
-    const day = localDateKey(new Date(s.start_time));
-    if (!byDay[day]) byDay[day] = { papouille: 0, tigrou: 0 };
-    if (s.cat === 'papouille' || s.cat === 'tigrou') {
-      byDay[day][s.cat] += Math.round(s.delta_g || 0);
-    }
-  });
-
-  // Construire les 7 derniers jours en ordre chronologique (heure LOCALE)
-  const days = [];
-  const labels = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-    days.push(localDateKey(d));
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    labels.push(`${dd}/${mm}`);
-  }
-
-  const papData = days.map(d => Math.round(byDay[d]?.papouille || 0));
-  const tigData = days.map(d => Math.round(byDay[d]?.tigrou || 0));
-
-  new Chart(document.getElementById('waterDailyChart').getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [
-        { label: 'Papouille', data: papData, backgroundColor: PAP + 'cc', borderRadius: 4 },
-        { label: 'Tigrou', data: tigData, backgroundColor: TIG + 'cc', borderRadius: 4 },
-      ],
-    },
-    options: {
-      plugins: { legend: { display: false } },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { color: tickColor, callback: v => v + 'g' },
-          grid: { color: gridColor },
-        },
-        x: { ticks: { color: tickColor }, grid: { display: false } },
-      },
-    },
-  });
-}
-
-function renderTable(sessions) {
-  const body = document.getElementById('tableBody');
-  body.innerHTML = '';
-
-  sessions.forEach(s => {
-    const dt = formatDateTime(s.start_time);
-    const tr = document.createElement('tr');
-    tr.style.cursor = 'pointer';
-    tr.onclick = () => {
-      window.location.href = `session.html?id=${encodeURIComponent(s.id)}`;
-    };
-
-    let catTag = `<span class="cat-tag cat-${s.cat}">${s.cat}</span>`;
-    if (s.is_error) catTag = `<span class="cat-tag cat-erreur">erreur</span>`;
-
-    tr.innerHTML = `
-      <td>${dt.date}</td>
-      <td>${dt.time}</td>
-      <td>${catTag}</td>
-      <td>${formatDuration(s.duration_s)}</td>
-      <td>${Math.round(s.delta_g || 0)}g</td>
-      <td>${s.certainty || '-'}</td>
-    `;
-    body.appendChild(tr);
-  });
-}
-
-// Lancement
-loadSessions();
-</script>
-
+  <script src="./app.js"></script>
 </body>
 </html>

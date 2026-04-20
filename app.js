@@ -174,8 +174,7 @@ function niceTicks(max, targetCount = 4) {
 
 function buildAreaChart(values, labels, color, dailyAvg) {
   const W = 360, H = 140;
-  // Marge large pour laisser respirer les barres sans clipping au bord
-  const padL = 18, padR = 18, padT = 18, padB = 6;
+  const padL = 14, padR = 14, padT = 18, padB = 6;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const n = values.length;
@@ -190,9 +189,9 @@ function buildAreaChart(values, labels, color, dailyAvg) {
     y: padT + innerH - (v / maxV) * innerH,
   }));
 
-  // Barres fines et aerees : ~40% de l'espacement, max 22 viewBox-px
+  // Barres plus epaisses, espacement reduit : 70% de l'espacement inter-jours
   const spacing = n > 1 ? (innerW / (n - 1)) : innerW;
-  const barW    = Math.min(Math.max(spacing * 0.4, 5), 22);
+  const barW    = Math.min(Math.max(spacing * 0.7, 6), 28);
 
   const gradId      = 'bar-' + Math.random().toString(36).slice(2, 8);
   const gradTodayId = 'today-' + Math.random().toString(36).slice(2, 8);
@@ -252,26 +251,28 @@ function buildAreaChart(values, labels, color, dailyAvg) {
         <span class="y-unit">ml</span>
         ${yAxisHtml}
       </div>
-      <div class="chart-plot">
-        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stop-color="${color}" stop-opacity="1"/>
-              <stop offset="100%" stop-color="${color}" stop-opacity="0.55"/>
-            </linearGradient>
-            <linearGradient id="${gradTodayId}" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stop-color="#1F1B16" stop-opacity="1"/>
-              <stop offset="100%" stop-color="#1F1B16" stop-opacity="0.65"/>
-            </linearGradient>
-          </defs>
-          ${gridLines}
-          ${bars}
-          ${avgLine}
-        </svg>
-        ${avgYPct !== null ? `<div class="avg-label" style="top: ${avgYPct.toFixed(1)}%">moy. ${Math.round(dailyAvg)}</div>` : ''}
+      <div class="chart-column">
+        <div class="chart-plot">
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stop-color="${color}" stop-opacity="1"/>
+                <stop offset="100%" stop-color="${color}" stop-opacity="0.55"/>
+              </linearGradient>
+              <linearGradient id="${gradTodayId}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stop-color="#1F1B16" stop-opacity="1"/>
+                <stop offset="100%" stop-color="#1F1B16" stop-opacity="0.65"/>
+              </linearGradient>
+            </defs>
+            ${gridLines}
+            ${bars}
+            ${avgLine}
+          </svg>
+          ${avgYPct !== null ? `<div class="avg-label" style="top: ${avgYPct.toFixed(1)}%">moy. ${Math.round(dailyAvg)}</div>` : ''}
+        </div>
+        <div class="day-labels">${dayLabelsHtml}</div>
       </div>
     </div>
-    <div class="day-labels">${dayLabelsHtml}</div>
   `;
 }
 

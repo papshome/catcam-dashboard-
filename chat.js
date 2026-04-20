@@ -239,8 +239,7 @@ function buildPeriodLabels(periodDays) {
 
 function buildAreaChart(values, labels, color, dailyAvg) {
   const W = 360, H = 140;
-  // Marge large pour laisser respirer les barres
-  const padL = 18, padR = 18, padT = 18, padB = 6;
+  const padL = 14, padR = 14, padT = 18, padB = 6;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const n = values.length;
@@ -255,9 +254,9 @@ function buildAreaChart(values, labels, color, dailyAvg) {
     y: padT + innerH - (v / maxV) * innerH,
   }));
 
-  // Barres fines et aerees
+  // Barres plus epaisses, espacement reduit
   const spacing = n > 1 ? (innerW / (n - 1)) : innerW;
-  const barW    = Math.min(Math.max(spacing * 0.4, 4), 22);
+  const barW    = Math.min(Math.max(spacing * 0.7, 5), 28);
 
   const gradId      = 'bar-' + Math.random().toString(36).slice(2, 8);
   const gradTodayId = 'today-' + Math.random().toString(36).slice(2, 8);

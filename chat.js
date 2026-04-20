@@ -247,34 +247,32 @@ function buildAreaChart(values, labels, color, dailyAvg) {
   const dataMax = Math.max(...values, dailyAvg || 0, 1);
   const ticks   = niceTicksMl(dataMax * 1.10, 4);
   const maxV    = ticks[ticks.length - 1];
+  const baseY   = padT + innerH;
 
   const pts = values.map((v, i) => ({
     x: padL + (innerW * i) / Math.max(n - 1, 1),
     y: padT + innerH - (v / maxV) * innerH,
   }));
 
-  // Catmull-Rom smooth
-  function smoothPath(p) {
-    if (p.length < 2) return '';
-    let d = `M${p[0].x.toFixed(1)},${p[0].y.toFixed(1)}`;
-    for (let i = 0; i < p.length - 1; i++) {
-      const p0 = p[i - 1] || p[i];
-      const p1 = p[i];
-      const p2 = p[i + 1];
-      const p3 = p[i + 2] || p2;
-      const t = 0.2;
-      const c1x = p1.x + (p2.x - p0.x) * t;
-      const c1y = p1.y + (p2.y - p0.y) * t;
-      const c2x = p2.x - (p3.x - p1.x) * t;
-      const c2y = p2.y - (p3.y - p1.y) * t;
-      d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
-    }
-    return d;
-  }
+  // Barres : largeur proportionnelle a l'espacement, avec min/max lisible
+  const spacing = n > 1 ? (innerW / (n - 1)) : innerW;
+  const barW    = Math.min(Math.max(spacing * 0.55, 5), 26);
 
-  const linePath = smoothPath(pts);
-  const baseY    = padT + innerH;
-  const areaPath = linePath + ` L${pts[n - 1].x.toFixed(1)},${baseY} L${pts[0].x.toFixed(1)},${baseY} Z`;
+  const bars = pts.map((p, i) => {
+    const v = values[i];
+    const isToday = i === n - 1;
+    const fill = isToday ? '#1F1B16' : color;
+    const opacity = isToday ? 1 : 0.9;
+    if (v <= 0) {
+      return `<rect x="${(p.x - barW / 2).toFixed(1)}" y="${(baseY - 1).toFixed(1)}"
+                    width="${barW.toFixed(1)}" height="1.5" rx="1" ry="1"
+                    fill="#E8E1D3"/>`;
+    }
+    const h = baseY - p.y;
+    return `<rect x="${(p.x - barW / 2).toFixed(1)}" y="${p.y.toFixed(1)}"
+                  width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2" ry="2"
+                  fill="${fill}" opacity="${opacity}"/>`;
+  }).join('');
 
   // Gridlines
   const gridLines = ticks.map(t => {
@@ -293,34 +291,18 @@ function buildAreaChart(values, labels, color, dailyAvg) {
              vector-effect="non-scaling-stroke"/>`
     : '';
 
-  // Y axis HTML
   const yAxisHtml = ticks.map(t => {
     const yPx = padT + innerH - (t / maxV) * innerH;
     const topPct = (yPx / H) * 100;
     return `<span class="y-tick" style="top: ${topPct.toFixed(1)}%">${Math.round(t)}</span>`;
   }).join('');
 
-  // Day labels (memes positions right% que les dots)
   const dayLabelsHtml = pts.map((p, i) => {
     const rPct = ((W - p.x) / W) * 100;
     const isToday = i === n - 1;
     const cls  = isToday ? 'today' : '';
     const text = labels[i] || '';
     return `<span class="${cls}" style="right:${rPct.toFixed(1)}%;">${text}</span>`;
-  }).join('');
-
-  const gradId = 'grad-' + Math.random().toString(36).slice(2, 8);
-
-  // Dots : tous les jours si periode <= 7, sinon juste today
-  const showAllDots = n <= 7;
-  const dotsHtml = pts.map((p, i) => {
-    const isToday = i === n - 1;
-    if (!isToday && !showAllDots) return '';
-    const rPct = ((W - p.x) / W) * 100;
-    const tPct = (p.y / H) * 100;
-    const fill = isToday ? '#1F1B16' : color;
-    const cls  = isToday ? 'day-dot today' : 'day-dot';
-    return `<div class="${cls}" style="right:${rPct.toFixed(1)}%;top:${tPct.toFixed(1)}%;background:${fill};"></div>`;
   }).join('');
 
   return `
@@ -332,20 +314,10 @@ function buildAreaChart(values, labels, color, dailyAvg) {
       <div class="chart-column">
         <div class="chart-plot">
           <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="${gradId}" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%"   stop-color="${color}" stop-opacity="0.35"/>
-                <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
             ${gridLines}
-            <path d="${areaPath}" fill="url(#${gradId})"/>
+            ${bars}
             ${avgLine}
-            <path d="${linePath}" stroke="${color}" stroke-width="2.2" fill="none"
-                  stroke-linecap="round" stroke-linejoin="round"
-                  vector-effect="non-scaling-stroke"/>
           </svg>
-          ${dotsHtml}
           ${avgYPct !== null ? `<div class="avg-label" style="top: ${avgYPct.toFixed(1)}%">moy. ${Math.round(dailyAvg)}</div>` : ''}
         </div>
         <div class="day-labels">${dayLabelsHtml}</div>

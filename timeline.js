@@ -596,6 +596,14 @@ async function main() {
     allSessions = await fetchSessions(14);
     renderFountainPill(allSessions);
     renderTimeline(allSessions);
+
+    // Deep link : ?session=cluster_xxx ouvre directement le bottom sheet
+    const params = new URLSearchParams(window.location.search);
+    const targetId = params.get('session');
+    if (targetId) {
+      const found = allSessions.find(s => s.id === targetId);
+      if (found) openSheet(found);
+    }
   } catch (e) {
     console.error(e);
     document.getElementById('timeline-list').innerHTML =

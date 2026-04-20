@@ -386,7 +386,7 @@ function renderRecentSessions(sessions) {
     const catLabel = CATS[s.cat]?.label || s.cat || '?';
     const delta = Math.round(s.delta_g || 0);
     const coverStyle = s.cover_url ? `background-image:url('${s.cover_url}')` : '';
-    const href = `./timeline.html`;
+    const href = `./timeline.html?session=${encodeURIComponent(s.id)}`;
     return `
       <a class="recent-item" href="${href}">
         <div class="ls-cover" style="${coverStyle}"></div>

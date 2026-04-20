@@ -239,7 +239,8 @@ function buildPeriodLabels(periodDays) {
 
 function buildAreaChart(values, labels, color, dailyAvg) {
   const W = 360, H = 140;
-  const padL = 6, padR = 6, padT = 18, padB = 6;
+  // Marge large pour laisser respirer les barres
+  const padL = 18, padR = 18, padT = 18, padB = 6;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const n = values.length;
@@ -254,31 +255,33 @@ function buildAreaChart(values, labels, color, dailyAvg) {
     y: padT + innerH - (v / maxV) * innerH,
   }));
 
-  // Barres : largeur proportionnelle a l'espacement, avec min/max lisible
+  // Barres fines et aerees
   const spacing = n > 1 ? (innerW / (n - 1)) : innerW;
-  const barW    = Math.min(Math.max(spacing * 0.55, 5), 26);
+  const barW    = Math.min(Math.max(spacing * 0.4, 4), 22);
+
+  const gradId      = 'bar-' + Math.random().toString(36).slice(2, 8);
+  const gradTodayId = 'today-' + Math.random().toString(36).slice(2, 8);
 
   const bars = pts.map((p, i) => {
     const v = values[i];
     const isToday = i === n - 1;
-    const fill = isToday ? '#1F1B16' : color;
-    const opacity = isToday ? 1 : 0.9;
     if (v <= 0) {
-      return `<rect x="${(p.x - barW / 2).toFixed(1)}" y="${(baseY - 1).toFixed(1)}"
-                    width="${barW.toFixed(1)}" height="1.5" rx="1" ry="1"
-                    fill="#E8E1D3"/>`;
+      return `<circle cx="${p.x.toFixed(1)}" cy="${(baseY - 0.5).toFixed(1)}"
+                      r="1.4" fill="#D9D1BE"/>`;
     }
     const h = baseY - p.y;
+    const fillUrl = isToday ? `url(#${gradTodayId})` : `url(#${gradId})`;
     return `<rect x="${(p.x - barW / 2).toFixed(1)}" y="${p.y.toFixed(1)}"
-                  width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2" ry="2"
-                  fill="${fill}" opacity="${opacity}"/>`;
+                  width="${barW.toFixed(1)}" height="${h.toFixed(1)}"
+                  rx="${Math.min(barW / 2, 4).toFixed(1)}" ry="${Math.min(barW / 2, 4).toFixed(1)}"
+                  fill="${fillUrl}"/>`;
   }).join('');
 
-  // Gridlines
+  // Gridlines legers
   const gridLines = ticks.map(t => {
     const y = padT + innerH - (t / maxV) * innerH;
     return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}"
-                  stroke="#E8E1D3" stroke-width="1" opacity="${t === 0 ? 0.9 : 0.55}"
+                  stroke="#E8E1D3" stroke-width="1" opacity="${t === 0 ? 0.7 : 0.3}"
                   vector-effect="non-scaling-stroke"/>`;
   }).join('');
 
@@ -314,6 +317,16 @@ function buildAreaChart(values, labels, color, dailyAvg) {
       <div class="chart-column">
         <div class="chart-plot">
           <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stop-color="${color}" stop-opacity="1"/>
+                <stop offset="100%" stop-color="${color}" stop-opacity="0.55"/>
+              </linearGradient>
+              <linearGradient id="${gradTodayId}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stop-color="#1F1B16" stop-opacity="1"/>
+                <stop offset="100%" stop-color="#1F1B16" stop-opacity="0.65"/>
+              </linearGradient>
+            </defs>
             ${gridLines}
             ${bars}
             ${avgLine}

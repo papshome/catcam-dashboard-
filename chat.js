@@ -199,6 +199,22 @@ function renderStatsCards(stats, cfg) {
 
 const WEEKDAYS_SHORT = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 
+// Ticks arrondis pour l'axe Y (ex: 0, 20, 40, 60 ml)
+function niceTicksMl(max, target = 4) {
+  if (max <= 0) return [0, 1];
+  const rawStep = max / (target - 1);
+  const pow = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const nice = [1, 2, 2.5, 5, 10];
+  let step = nice[nice.length - 1] * pow;
+  for (const s of nice) {
+    if (s * pow >= rawStep - 1e-9) { step = s * pow; break; }
+  }
+  const ticks = [];
+  const tickMax = Math.ceil(max / step) * step;
+  for (let v = 0; v <= tickMax + 1e-9; v += step) ticks.push(Math.round(v * 100) / 100);
+  return ticks;
+}
+
 function buildPeriodLabels(periodDays) {
   const labels = [];
   const step = periodDays <= 7 ? 1 : Math.ceil(periodDays / 6);

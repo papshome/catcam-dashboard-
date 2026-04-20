@@ -343,13 +343,100 @@ async function submitValidation(s, chosen, box) {
   s.cat = catUpdate;
 }
 
-// Fermeture modale : backdrop + Esc
+// Fermeture modale : backdrop + Esc + swipe-down
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('sheet-backdrop').addEventListener('click', closeSheet);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeSheet();
   });
+  enableSheetDrag();
 });
+
+// --- Swipe down to dismiss ---
+function enableSheetDrag() {
+  const sheet     = document.getElementById('sheet');
+  const backdrop  = document.getElementById('sheet-backdrop');
+  const container = document.getElementById('sheet-container');
+  if (!sheet || !backdrop || !container) return;
+
+  let pendingDrag   = false;
+  let isDragging    = false;
+  let startY        = 0;
+  let delta         = 0;
+  let activePointer = null;
+  const INTENT_PX   = 6;
+
+  sheet.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    // On ne prend le controle que si la modale est deja remontee au top
+    if (sheet.scrollTop > 0) return;
+    pendingDrag = true;
+    isDragging  = false;
+    startY      = e.clientY;
+    delta       = 0;
+    activePointer = e.pointerId;
+  });
+
+  sheet.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== activePointer) return;
+    const d = e.clientY - startY;
+
+    if (pendingDrag && !isDragging) {
+      if (Math.abs(d) < INTENT_PX) return;
+      if (d < 0) {                    // swipe vers le haut : on abandonne, on laisse le scroll natif
+        pendingDrag = false;
+        return;
+      }
+      // Intent downward : on engage
+      pendingDrag = false;
+      isDragging  = true;
+      sheet.style.transition    = 'none';
+      backdrop.style.transition = 'none';
+      try { sheet.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+
+    if (isDragging) {
+      delta = Math.max(0, d);
+      sheet.style.transform = `translateY(${delta}px)`;
+      const fade = Math.max(0, 1 - (delta / sheet.offsetHeight) * 1.3);
+      backdrop.style.opacity = String(fade);
+    }
+  });
+
+  function endDrag(e) {
+    if (e.pointerId !== activePointer) return;
+    activePointer = null;
+    pendingDrag   = false;
+    if (!isDragging) return;
+    isDragging = false;
+
+    try { sheet.releasePointerCapture(e.pointerId); } catch (err) {}
+    sheet.style.transition    = '';
+    backdrop.style.transition = '';
+
+    const threshold = sheet.offsetHeight * 0.22;   // 22% de la hauteur = fermeture
+    if (delta > threshold) {
+      // Anime jusqu'en bas puis nettoie a la fin de la transition
+      sheet.style.transform  = 'translateY(100%)';
+      backdrop.style.opacity = '0';
+      const cleanup = () => {
+        sheet.removeEventListener('transitionend', cleanup);
+        container.classList.remove('open');
+        container.setAttribute('aria-hidden', 'true');
+        sheet.style.transform  = '';
+        backdrop.style.opacity = '';
+      };
+      sheet.addEventListener('transitionend', cleanup, { once: true });
+    } else {
+      // Snap back a l'etat ouvert
+      sheet.style.transform  = '';
+      backdrop.style.opacity = '';
+    }
+  }
+
+  sheet.addEventListener('pointerup',     endDrag);
+  sheet.addEventListener('pointercancel', endDrag);
+}
 
 // ------- Weight chart SVG -------
 // Methode identique a generate_weight_graphs.py : courbe bleue avec marqueurs,

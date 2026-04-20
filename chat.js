@@ -135,10 +135,26 @@ function computeProfileStats(sessions, catKey, periodDays) {
     dailyCounts.push(byDay[k]?.count || 0);
   }
 
+  // Jours effectifs pour les moyennes journalieres : on ne divise que par le
+  // nombre de jours DEPUIS la premiere session observee (sinon le pre-demarrage
+  // du projet dilue artificiellement les moyennes).
+  const firstSessionTime = valid.length
+    ? Math.min(...valid.map(s => new Date(s.start_time).getTime()))
+    : null;
+  let effectiveDays = periodDays;
+  if (firstSessionTime) {
+    const daysSinceFirst = Math.ceil((Date.now() - firstSessionTime) / (24 * 60 * 60 * 1000)) + 1;
+    effectiveDays = Math.min(periodDays, Math.max(1, daysSinceFirst));
+  }
+
+  // Pour std dev : ne prendre en compte que les "effectiveDays" les plus recents
+  const recentDailyVolumes = dailyVolumes.slice(-effectiveDays);
+  const recentDailyCounts  = dailyCounts.slice(-effectiveDays);
+
   // Metriques
-  const totalVol = dailyVolumes.reduce((a, b) => a + b, 0);
-  const volumeAvg = totalVol / periodDays;
-  const volumeStd = std(dailyVolumes, volumeAvg);
+  const totalVol  = recentDailyVolumes.reduce((a, b) => a + b, 0);
+  const volumeAvg = totalVol / effectiveDays;
+  const volumeStd = std(recentDailyVolumes, volumeAvg);
 
   const durations = valid.map(s => s.duration_s).filter(d => typeof d === 'number' && d > 0);
   const durationAvg = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
@@ -147,8 +163,8 @@ function computeProfileStats(sessions, catKey, periodDays) {
   const rates = valid.map(s => s.rate_gs).filter(r => typeof r === 'number' && r > 0);
   const rateMedian = median(rates);
 
-  const sessionsAvg = dailyCounts.reduce((a, b) => a + b, 0) / periodDays;
-  const sessionsStd = std(dailyCounts, sessionsAvg);
+  const sessionsAvg = recentDailyCounts.reduce((a, b) => a + b, 0) / effectiveDays;
+  const sessionsStd = std(recentDailyCounts, sessionsAvg);
 
   // Heatmap horaire (somme sur toute la periode)
   const hourly = new Array(24).fill(0);

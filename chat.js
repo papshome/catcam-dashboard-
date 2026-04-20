@@ -261,7 +261,7 @@ function buildAreaChart(values, labels, color, dailyAvg) {
   const n = values.length;
 
   const dataMax = Math.max(...values, dailyAvg || 0, 1);
-  const ticks   = niceTicksMl(dataMax * 1.10, 4);
+  const ticks   = niceTicksMl(dataMax * 1.05, 6);
   const maxV    = ticks[ticks.length - 1];
   const baseY   = padT + innerH;
 

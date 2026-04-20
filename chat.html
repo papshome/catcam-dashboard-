@@ -202,15 +202,85 @@
     }
     .chart-card-title { font-size: 14px; font-weight: 700; color: #1F1B16; letter-spacing: -0.01em; }
     .chart-card-unit { font-size: 11px; color: #9A9285; font-weight: 500; }
-    .chart-30 {
-      height: 100px;
-      position: relative;
+    /* ---- Chart volume (meme DA que l'accueil) ---- */
+    .chart-wrap {
+      height: 150px;
+      display: flex;
+      flex-direction: column;
     }
-    .chart-30 svg { width: 100%; height: 100%; display: block; }
-    .chart-dates {
-      display: flex; justify-content: space-between;
-      font-size: 10px; color: #9A9285; font-weight: 500;
+    .plot-row {
+      flex: 1 1 auto;
+      display: flex;
+      gap: 4px;
+      min-height: 0;
+    }
+    .y-axis {
+      width: 22px;
+      flex-shrink: 0;
+      position: relative;
+      pointer-events: none;
+    }
+    .y-axis .y-unit {
+      position: absolute; top: 0; right: 0;
+      font-size: 9px; color: #9A9285; font-weight: 600;
+      text-transform: lowercase; letter-spacing: 0.02em;
+    }
+    .y-axis .y-tick {
+      position: absolute; right: 0;
+      transform: translateY(-50%);
+      font-size: 9.5px; color: #9A9285; font-weight: 500;
+      white-space: nowrap;
+    }
+    .chart-column {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .chart-plot {
+      flex: 1 1 auto;
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+    }
+    .chart-plot svg { display: block; width: 100%; height: 100%; }
+    .chart-column .day-labels {
+      position: relative;
+      height: 16px;
+      flex-shrink: 0;
       margin-top: 6px;
+    }
+    .chart-column .day-labels span {
+      position: absolute;
+      transform: translateX(50%);
+      font-size: 11px; color: #9A9285; font-weight: 500;
+      white-space: nowrap;
+    }
+    .chart-column .day-labels span.today { color: #1F1B16; font-weight: 600; }
+    .day-dot {
+      position: absolute;
+      width: 7px; height: 7px;
+      border-radius: 999px;
+      transform: translate(50%, -50%);
+      pointer-events: none;
+      z-index: 1;
+      box-sizing: border-box;
+      border: 1.5px solid #fff;
+    }
+    .day-dot.today { z-index: 2; }
+    .avg-label {
+      position: absolute;
+      left: 4px;
+      transform: translateY(-50%);
+      font-size: 10px; color: #4A433A;
+      background: rgba(255,255,255,0.45);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      padding: 2px 7px; border-radius: 8px;
+      font-weight: 600; pointer-events: none;
+      border: 1px solid rgba(242,237,228,0.6);
+      white-space: nowrap;
+      z-index: 2;
     }
 
     /* ---- Heatmap card ---- */
@@ -381,18 +451,14 @@
       </div>
     </section>
 
-    <!-- Volume chart -->
+    <!-- Volume chart (meme DA que l'accueil) -->
     <section class="px-5 mt-4">
       <div class="chart-card">
         <div class="chart-card-head">
           <span class="chart-card-title" id="chart-title">Volume sur 7 jours</span>
           <span class="chart-card-unit">ml / jour</span>
         </div>
-        <div class="chart-30" id="volume-chart"></div>
-        <div class="chart-dates">
-          <span id="chart-date-start">—</span>
-          <span id="chart-date-end">auj.</span>
-        </div>
+        <div class="chart-wrap" id="volume-chart"></div>
       </div>
     </section>
 

@@ -195,19 +195,34 @@ function renderStatsCards(stats, cfg) {
     stats.sessionsAvg > 0 ? `±${stats.sessionsStd.toFixed(1)} · normal` : '—';
 }
 
-// ------- Rendu chart 30j -------
+// ------- Rendu chart (meme DA / meme methode que l'accueil) -------
 
-function renderVolumeChart(stats, cfg) {
-  const el = document.getElementById('volume-chart');
-  const values = stats.dailyVolumes;
-  const W = 400, H = 100;
-  const padL = 4, padR = 4, padT = 10, padB = 4;
+const WEEKDAYS_SHORT = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+
+function buildPeriodLabels(periodDays) {
+  const labels = [];
+  const step = periodDays <= 7 ? 1 : Math.ceil(periodDays / 6);
+  for (let i = periodDays - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    const isToday = i === 0;
+    if (isToday)                         labels.push('auj');
+    else if (periodDays <= 7)            labels.push(WEEKDAYS_SHORT[d.getDay()]);
+    else if (i % step === 0)             labels.push(`${d.getDate()}/${d.getMonth() + 1}`);
+    else                                 labels.push('');
+  }
+  return labels;
+}
+
+function buildAreaChart(values, labels, color, dailyAvg) {
+  const W = 360, H = 140;
+  const padL = 6, padR = 6, padT = 18, padB = 6;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const n = values.length;
 
-  const dataMax = Math.max(...values, cfg.normalRange[1], 1);
-  const maxV = dataMax * 1.15;
+  const dataMax = Math.max(...values, dailyAvg || 0, 1);
+  const ticks   = niceTicksMl(dataMax * 1.10, 4);
+  const maxV    = ticks[ticks.length - 1];
 
   const pts = values.map((v, i) => ({
     x: padL + (innerW * i) / Math.max(n - 1, 1),
@@ -232,46 +247,94 @@ function renderVolumeChart(stats, cfg) {
     }
     return d;
   }
+
   const linePath = smoothPath(pts);
-  const baseY = padT + innerH;
+  const baseY    = padT + innerH;
   const areaPath = linePath + ` L${pts[n - 1].x.toFixed(1)},${baseY} L${pts[0].x.toFixed(1)},${baseY} Z`;
 
-  // Bande normale (zone verte)
-  const [lo, hi] = cfg.normalRange;
-  const yLo = padT + innerH - (lo / maxV) * innerH;
-  const yHi = padT + innerH - (hi / maxV) * innerH;
-  const band = `<rect x="${padL}" y="${yHi.toFixed(1)}" width="${innerW}" height="${(yLo - yHi).toFixed(1)}"
-                      fill="${cfg.accent}" opacity="0.08"/>
-                <line x1="${padL}" y1="${yLo.toFixed(1)}" x2="${W - padR}" y2="${yLo.toFixed(1)}"
-                      stroke="${cfg.accent}" stroke-width="0.5" stroke-dasharray="2 3" opacity="0.4"
-                      vector-effect="non-scaling-stroke"/>
-                <line x1="${padL}" y1="${yHi.toFixed(1)}" x2="${W - padR}" y2="${yHi.toFixed(1)}"
-                      stroke="${cfg.accent}" stroke-width="0.5" stroke-dasharray="2 3" opacity="0.4"
-                      vector-effect="non-scaling-stroke"/>`;
+  // Gridlines
+  const gridLines = ticks.map(t => {
+    const y = padT + innerH - (t / maxV) * innerH;
+    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}"
+                  stroke="#E8E1D3" stroke-width="1" opacity="${t === 0 ? 0.9 : 0.55}"
+                  vector-effect="non-scaling-stroke"/>`;
+  }).join('');
 
-  const gradId = 'g30-' + Math.random().toString(36).slice(2, 8);
-  const color = cfg.accent;
+  // Ligne moyenne
+  const avgY = dailyAvg > 0 ? padT + innerH - (dailyAvg / maxV) * innerH : null;
+  const avgYPct = avgY !== null ? (avgY / H) * 100 : null;
+  const avgLine = avgY !== null
+    ? `<line x1="${padL}" y1="${avgY.toFixed(1)}" x2="${W - padR}" y2="${avgY.toFixed(1)}"
+             stroke="#4A433A" stroke-width="1" stroke-dasharray="3 4" opacity="0.75"
+             vector-effect="non-scaling-stroke"/>`
+    : '';
 
-  el.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="${gradId}" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%"   stop-color="${color}" stop-opacity="0.32"/>
-          <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
-      ${band}
-      <path d="${areaPath}" fill="url(#${gradId})"/>
-      <path d="${linePath}" stroke="${color}" stroke-width="1.6" fill="none"
-            stroke-linecap="round" stroke-linejoin="round"
-            vector-effect="non-scaling-stroke"/>
-    </svg>
+  // Y axis HTML
+  const yAxisHtml = ticks.map(t => {
+    const yPx = padT + innerH - (t / maxV) * innerH;
+    const topPct = (yPx / H) * 100;
+    return `<span class="y-tick" style="top: ${topPct.toFixed(1)}%">${Math.round(t)}</span>`;
+  }).join('');
+
+  // Day labels (memes positions right% que les dots)
+  const dayLabelsHtml = pts.map((p, i) => {
+    const rPct = ((W - p.x) / W) * 100;
+    const isToday = i === n - 1;
+    const cls  = isToday ? 'today' : '';
+    const text = labels[i] || '';
+    return `<span class="${cls}" style="right:${rPct.toFixed(1)}%;">${text}</span>`;
+  }).join('');
+
+  const gradId = 'grad-' + Math.random().toString(36).slice(2, 8);
+
+  // Dots : tous les jours si periode <= 7, sinon juste today
+  const showAllDots = n <= 7;
+  const dotsHtml = pts.map((p, i) => {
+    const isToday = i === n - 1;
+    if (!isToday && !showAllDots) return '';
+    const rPct = ((W - p.x) / W) * 100;
+    const tPct = (p.y / H) * 100;
+    const fill = isToday ? '#1F1B16' : color;
+    const cls  = isToday ? 'day-dot today' : 'day-dot';
+    return `<div class="${cls}" style="right:${rPct.toFixed(1)}%;top:${tPct.toFixed(1)}%;background:${fill};"></div>`;
+  }).join('');
+
+  return `
+    <div class="plot-row">
+      <div class="y-axis">
+        <span class="y-unit">ml</span>
+        ${yAxisHtml}
+      </div>
+      <div class="chart-column">
+        <div class="chart-plot">
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="${gradId}" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%"   stop-color="${color}" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            ${gridLines}
+            <path d="${areaPath}" fill="url(#${gradId})"/>
+            ${avgLine}
+            <path d="${linePath}" stroke="${color}" stroke-width="2.2" fill="none"
+                  stroke-linecap="round" stroke-linejoin="round"
+                  vector-effect="non-scaling-stroke"/>
+          </svg>
+          ${dotsHtml}
+          ${avgYPct !== null ? `<div class="avg-label" style="top: ${avgYPct.toFixed(1)}%">moy. ${Math.round(dailyAvg)}</div>` : ''}
+        </div>
+        <div class="day-labels">${dayLabelsHtml}</div>
+      </div>
+    </div>
   `;
+}
 
-  // Date labels
-  const startDate = new Date(Date.now() - (state.period - 1) * 24 * 60 * 60 * 1000);
-  const startStr = `${startDate.getDate()} ${MONTHS_SHORT[startDate.getMonth()]}`;
-  document.getElementById('chart-date-start').textContent = startStr;
+function renderVolumeChart(stats, cfg) {
+  const el = document.getElementById('volume-chart');
+  const values = stats.dailyVolumes;
+  const labels = buildPeriodLabels(state.period);
+  el.innerHTML = buildAreaChart(values, labels, cfg.accent, stats.volumeAvg);
   document.getElementById('chart-title').textContent = `Volume sur ${state.period} jours`;
 }
 

@@ -364,6 +364,9 @@ function enableSheetDrag() {
   let startY        = 0;
   let delta         = 0;
   let activePointer = null;
+  let lastY         = 0;
+  let lastTime      = 0;
+  let velocity      = 0;                      // px/ms (positif = vers le bas)
   const INTENT_PX   = 6;
 
   sheet.addEventListener('pointerdown', (e) => {
@@ -373,6 +376,9 @@ function enableSheetDrag() {
     pendingDrag = true;
     isDragging  = false;
     startY      = e.clientY;
+    lastY       = e.clientY;
+    lastTime    = performance.now();
+    velocity    = 0;
     delta       = 0;
     activePointer = e.pointerId;
   });
@@ -400,6 +406,12 @@ function enableSheetDrag() {
       sheet.style.transform = `translateY(${delta}px)`;
       const fade = Math.max(0, 1 - (delta / sheet.offsetHeight) * 1.3);
       backdrop.style.opacity = String(fade);
+      // Velocite instantanee (px/ms)
+      const now = performance.now();
+      const dt  = now - lastTime;
+      if (dt > 0) velocity = (e.clientY - lastY) / dt;
+      lastY    = e.clientY;
+      lastTime = now;
     }
   });
 
@@ -414,8 +426,14 @@ function enableSheetDrag() {
     sheet.style.transition    = '';
     backdrop.style.transition = '';
 
-    const threshold = sheet.offsetHeight * 0.22;   // 22% de la hauteur = fermeture
-    if (delta > threshold) {
+    // Fermeture si :
+    //   - geste long : > 15% de la hauteur (ou 80 px min, pour les petits ecrans)
+    //   - flick rapide : velocite > 0.5 px/ms ET au moins 25 px
+    const distThreshold = Math.min(sheet.offsetHeight * 0.15, 80);
+    const FLICK_V       = 0.5;
+    const shouldClose   = (delta > distThreshold) || (velocity > FLICK_V && delta > 25);
+
+    if (shouldClose) {
       // Anime jusqu'en bas puis nettoie a la fin de la transition
       sheet.style.transform  = 'translateY(100%)';
       backdrop.style.opacity = '0';

@@ -1,462 +1,501 @@
-// ==============================================
-// CatCam Dashboard v2 - Page profil chat
-// ==============================================
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#FAF7F2" />
+  <title>CatCam — Profil</title>
 
-const SUPABASE_URL = 'https://pnkultqeijguvthjrehx.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBua3VsdHFlaWpndXZ0aGpyZWh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NDE4NjYsImV4cCI6MjA4NTMxNzg2Nn0.TrD_cGc-VLBfBsMVXg2rInM2LPjLyhXxZFBjHJ2MB_8';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-// Chat effectif : validation humaine > prediction ML
-function effectiveCat(s) {
-  if (s.user_validated_cat && (s.user_validated_cat === 'papouille' || s.user_validated_cat === 'tigrou')) {
-    return s.user_validated_cat;
-  }
-  return s.cat;
-}
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-const CATS = {
-  papouille: { label: 'Papouille', accent: '#7BA889', normalRange: [25, 55] },
-  tigrou:    { label: 'Tigrou',    accent: '#D9A95E', normalRange: [6, 20] },
-};
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            cream:  { 50: '#FDFBF7', 100: '#FAF7F2', 200: '#F2EDE4', 300: '#E8E1D3' },
+            ink:    { 900: '#1F1B16', 700: '#4A433A', 500: '#7A7368', 400: '#9A9285' },
+            calm:   { 50: '#EEF4EF', 200: '#C9DDCC', 500: '#7BA889', 700: '#4F7A5D' },
+            amber2: { 50: '#FBF3E4', 200: '#F0DDB0', 500: '#D9A95E', 700: '#A17526' },
+            rose:   { 500: '#C86C6C', 700: '#8C4343' },
+          },
+        },
+      },
+    };
+  </script>
 
-const FOUNTAIN_EMPTY_G = 1367;
-const FOUNTAIN_FULL_G  = 2761;
+  <style>
+    html, body { background: #FAF7F2; }
+    body { font-family: 'Inter', system-ui, sans-serif; color: #1F1B16; -webkit-font-smoothing: antialiased; }
+    .viewport { max-width: 440px; margin: 0 auto; min-height: 100vh; }
 
-const MONTHS_SHORT = ['jan','fev','mar','avr','mai','jun','jul','aou','sep','oct','nov','dec'];
-
-// ------- State -------
-const state = {
-  currentCat: 'papouille',
-  period: 7,           // 30 | 7 | 0 (tout, pas encore implemente)
-  sessions: [],
-};
-
-// ------- Utilitaires -------
-
-function localDateKey(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatDurationMMSS(seconds) {
-  if (!seconds || seconds <= 0) return '—';
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-function median(arr) {
-  if (!arr.length) return 0;
-  const sorted = [...arr].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-}
-
-function std(arr, mean) {
-  if (!arr.length) return 0;
-  const v = arr.reduce((s, x) => s + (x - mean) * (x - mean), 0) / arr.length;
-  return Math.sqrt(v);
-}
-
-// ------- Fetch sessions (31 jours pour couvrir periode 30j) -------
-
-async function fetchSessions() {
-  const since = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await sb
-    .from('sessions')
-    .select('*')
-    .gte('start_time', since)
-    .order('start_time', { ascending: false });
-  if (error) throw new Error(`Supabase: ${error.message}`);
-  return data || [];
-}
-
-// ------- Fountain fill (dup simplifiee de app.js) -------
-
-function fillPctFromWeight(g) {
-  if (typeof g !== 'number' || !isFinite(g)) return null;
-  const raw = ((g - FOUNTAIN_EMPTY_G) / (FOUNTAIN_FULL_G - FOUNTAIN_EMPTY_G)) * 100;
-  return Math.round(Math.max(0, Math.min(100, raw)));
-}
-function lastWeightFromSession(s) {
-  if (!s || !Array.isArray(s.weight_curve) || s.weight_curve.length === 0) return null;
-  const g = s.weight_curve[s.weight_curve.length - 1]?.g;
-  return typeof g === 'number' ? g : null;
-}
-function computeFountainFill(sessions) {
-  let latest = null, latestTime = 0;
-  for (const s of sessions) {
-    if (!Array.isArray(s.weight_curve) || s.weight_curve.length === 0) continue;
-    const t = new Date(s.start_time).getTime();
-    if (t > latestTime) { latestTime = t; latest = s; }
-  }
-  const current = lastWeightFromSession(latest);
-  const pct = fillPctFromWeight(current);
-  if (pct === null) return null;
-  return { pct, current, min: FOUNTAIN_EMPTY_G, max: FOUNTAIN_FULL_G };
-}
-function renderFountainPill(fill) {
-  const pill = document.getElementById('fountain-pill');
-  const txt  = document.getElementById('fountain-pct-text');
-  if (!fill) { pill.style.display = 'none'; return; }
-  pill.style.display = 'inline-flex';
-  txt.textContent = `${fill.pct}%`;
-  pill.classList.remove('low', 'empty');
-  if (fill.pct < 15)       pill.classList.add('empty');
-  else if (fill.pct < 30)  pill.classList.add('low');
-  pill.title = `Fontaine ~${fill.pct}% (${Math.round(fill.current)} g)`;
-}
-
-// ------- Stats -------
-
-function computeProfileStats(sessions, catKey, periodDays) {
-  const cutoff = Date.now() - periodDays * 24 * 60 * 60 * 1000;
-  const valid = sessions.filter(s =>
-    effectiveCat(s) === catKey && !s.is_error && new Date(s.start_time).getTime() >= cutoff
-  );
-
-  // Aggregation par jour (volume + count)
-  const byDay = {};
-  valid.forEach(s => {
-    const k = localDateKey(new Date(s.start_time));
-    if (!byDay[k]) byDay[k] = { total: 0, count: 0 };
-    byDay[k].total += Math.round(s.delta_g || 0);
-    byDay[k].count += 1;
-  });
-
-  // Reconstitution des N jours (y compris ceux sans session = 0)
-  const allDayKeys = [];
-  const dailyVolumes = [];
-  const dailyCounts  = [];
-  for (let i = periodDays - 1; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-    const k = localDateKey(d);
-    allDayKeys.push(k);
-    dailyVolumes.push(byDay[k]?.total || 0);
-    dailyCounts.push(byDay[k]?.count || 0);
-  }
-
-  // Jours effectifs pour les moyennes journalieres : on ne divise que par le
-  // nombre de jours DEPUIS la premiere session observee (sinon le pre-demarrage
-  // du projet dilue artificiellement les moyennes).
-  const firstSessionTime = valid.length
-    ? Math.min(...valid.map(s => new Date(s.start_time).getTime()))
-    : null;
-  let effectiveDays = periodDays;
-  if (firstSessionTime) {
-    const daysSinceFirst = Math.ceil((Date.now() - firstSessionTime) / (24 * 60 * 60 * 1000)) + 1;
-    effectiveDays = Math.min(periodDays, Math.max(1, daysSinceFirst));
-  }
-
-  // Pour std dev : ne prendre en compte que les "effectiveDays" les plus recents
-  const recentDailyVolumes = dailyVolumes.slice(-effectiveDays);
-  const recentDailyCounts  = dailyCounts.slice(-effectiveDays);
-
-  // Metriques
-  const totalVol  = recentDailyVolumes.reduce((a, b) => a + b, 0);
-  const volumeAvg = totalVol / effectiveDays;
-  const volumeStd = std(recentDailyVolumes, volumeAvg);
-
-  const durations = valid.map(s => s.duration_s).filter(d => typeof d === 'number' && d > 0);
-  const durationAvg = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
-  const durationStd = std(durations, durationAvg);
-
-  const rates = valid.map(s => s.rate_gs).filter(r => typeof r === 'number' && r > 0);
-  const rateMedian = median(rates);
-
-  const sessionsAvg = recentDailyCounts.reduce((a, b) => a + b, 0) / effectiveDays;
-  const sessionsStd = std(recentDailyCounts, sessionsAvg);
-
-  // Heatmap horaire (somme sur toute la periode)
-  const hourly = new Array(24).fill(0);
-  valid.forEach(s => {
-    const h = new Date(s.start_time).getHours();
-    hourly[h] += 1;
-  });
-
-  return {
-    volumeAvg, volumeStd,
-    durationAvg, durationStd,
-    rateMedian,
-    sessionsAvg, sessionsStd,
-    dailyVolumes,
-    hourly,
-    totalSessions: valid.length,
-    periodDays,
-  };
-}
-
-// ------- Verdict helpers -------
-
-function verdictVolume(cfg, avg) {
-  const [lo, hi] = cfg.normalRange;
-  if (avg < lo * 0.5) return { cls: 'alert', text: 'tres bas' };
-  if (avg < lo)        return { cls: 'watch', text: 'un peu bas' };
-  if (avg > hi * 1.3) return { cls: 'alert', text: 'eleve' };
-  if (avg > hi)        return { cls: 'watch', text: 'au-dessus' };
-  return { cls: '', text: 'normal' };
-}
-
-// ------- Rendu stats cards -------
-
-function renderStatsCards(stats, cfg) {
-  const volV = verdictVolume(cfg, stats.volumeAvg);
-  document.getElementById('stat-volume').innerHTML = `${Math.round(stats.volumeAvg)}<span class="u">ml</span>`;
-  const volVerdict = document.getElementById('stat-volume-verdict');
-  volVerdict.textContent = `±${Math.round(stats.volumeStd)} ml · ${volV.text}`;
-  volVerdict.className = `verdict ${volV.cls}`;
-
-  document.getElementById('stat-duration').textContent = formatDurationMMSS(stats.durationAvg);
-  document.getElementById('stat-duration-verdict').textContent =
-    stats.durationAvg > 0 ? `±${Math.round(stats.durationStd)}s · normal` : '—';
-
-  document.getElementById('stat-rate').innerHTML = stats.rateMedian > 0
-    ? `${stats.rateMedian.toFixed(2)}<span class="u">ml/s</span>`
-    : `—<span class="u"></span>`;
-  document.getElementById('stat-rate-verdict').textContent = stats.rateMedian > 0 ? 'stable' : '—';
-
-  document.getElementById('stat-sessions').textContent = stats.sessionsAvg.toFixed(1);
-  document.getElementById('stat-sessions-verdict').textContent =
-    stats.sessionsAvg > 0 ? `±${stats.sessionsStd.toFixed(1)} · normal` : '—';
-}
-
-// ------- Rendu chart (meme DA / meme methode que l'accueil) -------
-
-const WEEKDAYS_SHORT = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
-
-// Ticks arrondis pour l'axe Y (ex: 0, 20, 40, 60 ml)
-function niceTicksMl(max, target = 4) {
-  if (max <= 0) return [0, 1];
-  const rawStep = max / (target - 1);
-  const pow = Math.pow(10, Math.floor(Math.log10(rawStep)));
-  const nice = [1, 2, 2.5, 5, 10];
-  let step = nice[nice.length - 1] * pow;
-  for (const s of nice) {
-    if (s * pow >= rawStep - 1e-9) { step = s * pow; break; }
-  }
-  const ticks = [];
-  const tickMax = Math.ceil(max / step) * step;
-  for (let v = 0; v <= tickMax + 1e-9; v += step) ticks.push(Math.round(v * 100) / 100);
-  return ticks;
-}
-
-function buildPeriodLabels(periodDays) {
-  const labels = [];
-  const step = periodDays <= 7 ? 1 : Math.ceil(periodDays / 6);
-  for (let i = periodDays - 1; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-    const isToday = i === 0;
-    if (isToday)                         labels.push('auj');
-    else if (periodDays <= 7)            labels.push(WEEKDAYS_SHORT[d.getDay()]);
-    else if (i % step === 0)             labels.push(`${d.getDate()}/${d.getMonth() + 1}`);
-    else                                 labels.push('');
-  }
-  return labels;
-}
-
-function buildAreaChart(values, labels, color, dailyAvg) {
-  const W = 360, H = 140;
-  const padL = 14, padR = 14, padT = 18, padB = 6;
-  const innerW = W - padL - padR;
-  const innerH = H - padT - padB;
-  const n = values.length;
-
-  const dataMax = Math.max(...values, dailyAvg || 0, 1);
-  const ticks   = niceTicksMl(dataMax * 1.05, 6);
-  const maxV    = ticks[ticks.length - 1];
-  const baseY   = padT + innerH;
-
-  const pts = values.map((v, i) => ({
-    x: padL + (innerW * i) / Math.max(n - 1, 1),
-    y: padT + innerH - (v / maxV) * innerH,
-  }));
-
-  // Barres plus epaisses, espacement reduit
-  const spacing = n > 1 ? (innerW / (n - 1)) : innerW;
-  const barW    = Math.min(Math.max(spacing * 0.7, 5), 28);
-
-  const gradId      = 'bar-' + Math.random().toString(36).slice(2, 8);
-  const gradTodayId = 'today-' + Math.random().toString(36).slice(2, 8);
-
-  const bars = pts.map((p, i) => {
-    const v = values[i];
-    const isToday = i === n - 1;
-    if (v <= 0) {
-      return `<circle cx="${p.x.toFixed(1)}" cy="${(baseY - 0.5).toFixed(1)}"
-                      r="1.4" fill="#D9D1BE"/>`;
+    /* ---- Header brand (identique home) ---- */
+    .brand-logo { height: 32px; width: auto; display: block; user-select: none; }
+    .fountain-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 11px 6px 9px;
+      background: #F2EDE4; border: 1px solid #E8E1D3;
+      border-radius: 999px;
+      font-size: 12px; font-weight: 700; color: #1F1B16;
+      letter-spacing: -0.01em;
     }
-    const h = baseY - p.y;
-    const fillUrl = isToday ? `url(#${gradTodayId})` : `url(#${gradId})`;
-    return `<rect x="${(p.x - barW / 2).toFixed(1)}" y="${p.y.toFixed(1)}"
-                  width="${barW.toFixed(1)}" height="${h.toFixed(1)}"
-                  rx="${Math.min(barW / 2, 4).toFixed(1)}" ry="${Math.min(barW / 2, 4).toFixed(1)}"
-                  fill="${fillUrl}"/>`;
-  }).join('');
+    .fountain-pill .drop { width: 14px; height: 14px; flex-shrink: 0; color: #7BA889; }
+    .fountain-pill.low    .drop { color: #D9A95E; }
+    .fountain-pill.empty  .drop { color: #C86C6C; }
+    .fountain-pill.low    { background: #FBF3E4; border-color: #F0DDB0; color: #A17526; }
+    .fountain-pill.empty  { background: #F6E2E2; border-color: #EBC5C5; color: #8C4343; }
+    .avatar-btn {
+      width: 44px; height: 44px; border-radius: 999px;
+      background: #F2EDE4; display: flex; align-items: center; justify-content: center;
+      color: #4A433A; flex-shrink: 0; border: 1px solid #E8E1D3;
+    }
+    .avatar-btn:hover { background: #E8E1D3; }
 
-  // Gridlines legers
-  const gridLines = ticks.map(t => {
-    const y = padT + innerH - (t / maxV) * innerH;
-    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}"
-                  stroke="#E8E1D3" stroke-width="1" opacity="${t === 0 ? 0.7 : 0.3}"
-                  vector-effect="non-scaling-stroke"/>`;
-  }).join('');
+    /* ---- Cat selector (2 photos pour switcher) ---- */
+    .cat-selector {
+      display: flex; gap: 12px;
+      padding: 0 20px;
+    }
+    .cat-pick {
+      flex: 1; min-width: 0;
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px;
+      background: #fff;
+      border-radius: 22px;
+      border: 2px solid transparent;
+      box-shadow: 0 1px 2px rgba(31,27,22,.03), 0 4px 12px rgba(31,27,22,.04);
+      cursor: pointer;
+      transition: opacity .15s ease, border-color .18s ease, transform .1s ease, background .15s ease;
+      color: inherit; text-decoration: none;
+    }
+    .cat-pick.inactive {
+      opacity: 0.5;
+      background: transparent;
+      box-shadow: none;
+    }
+    .cat-pick.inactive:hover { opacity: 0.8; }
+    .cat-pick:active { transform: translateY(1px); }
+    .cat-pick-photo {
+      width: 48px; height: 48px; border-radius: 999px;
+      background-size: cover; background-position: center; background-color: #F2EDE4;
+      flex-shrink: 0;
+      box-shadow: inset 0 0 0 2px #fff, 0 0 0 1px #E8E1D3;
+    }
+    .cat-pick-name { font-size: 15px; font-weight: 700; color: #1F1B16; letter-spacing: -0.01em; }
+    .cat-pick.inactive .cat-pick-name { font-weight: 500; color: #4A433A; }
+    .cat-pick-hint { font-size: 11px; color: #7A7368; margin-top: 2px; }
 
-  // Ligne moyenne
-  const avgY = dailyAvg > 0 ? padT + innerH - (dailyAvg / maxV) * innerH : null;
-  const avgYPct = avgY !== null ? (avgY / H) * 100 : null;
-  const avgLine = avgY !== null
-    ? `<line x1="${padL}" y1="${avgY.toFixed(1)}" x2="${W - padR}" y2="${avgY.toFixed(1)}"
-             stroke="#4A433A" stroke-width="1" stroke-dasharray="3 4" opacity="0.75"
-             vector-effect="non-scaling-stroke"/>`
-    : '';
+    /* ---- Period tabs ---- */
+    .period-tabs {
+      display: inline-flex; gap: 4px;
+      padding: 3px;
+      background: #F2EDE4;
+      border-radius: 14px;
+    }
+    .period-tab {
+      padding: 5px 14px;
+      border-radius: 11px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #7A7368;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+    }
+    .period-tab.active {
+      background: #fff;
+      color: #1F1B16;
+      box-shadow: 0 1px 2px rgba(31,27,22,.06);
+    }
+    .period-tab:disabled { opacity: 0.45; cursor: not-allowed; }
 
-  const yAxisHtml = ticks.map(t => {
-    const yPx = padT + innerH - (t / maxV) * innerH;
-    const topPct = (yPx / H) * 100;
-    return `<span class="y-tick" style="top: ${topPct.toFixed(1)}%">${Math.round(t)}</span>`;
-  }).join('');
+    /* ---- AI analysis card ---- */
+    .ai-card {
+      position: relative;
+      background: linear-gradient(135deg, #FDFBF7 0%, #F5EFE4 100%);
+      border: 1px solid #E8E1D3;
+      border-radius: 22px;
+      padding: 14px 16px;
+      overflow: hidden;
+    }
+    .ai-card::before {
+      content: '';
+      position: absolute;
+      top: -20px; right: -40px;
+      width: 180px; height: 180px;
+      background: radial-gradient(circle, rgba(123,168,137,0.12) 0%, rgba(123,168,137,0) 70%);
+      pointer-events: none;
+    }
+    .ai-card-head {
+      position: relative;
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 8px;
+    }
+    .ai-icon {
+      width: 32px; height: 32px; flex-shrink: 0;
+      border-radius: 10px;
+      background: #fff; border: 1px solid #E8E1D3;
+      display: flex; align-items: center; justify-content: center;
+      color: #4F7A5D;
+      box-shadow: 0 1px 2px rgba(31,27,22,.04);
+    }
+    .ai-title {
+      font-size: 13px; font-weight: 700; color: #1F1B16; letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .ai-subtitle {
+      font-size: 10.5px; color: #7A7368; font-weight: 500;
+      margin-top: 1px;
+    }
+    .ai-content {
+      position: relative;
+      font-size: 12.5px; line-height: 1.55;
+      color: #4A433A;
+    }
+    .ai-placeholder {
+      color: #7A7368;
+      font-style: italic;
+    }
 
-  const dayLabelsHtml = pts.map((p, i) => {
-    const rPct = ((W - p.x) / W) * 100;
-    const isToday = i === n - 1;
-    const cls  = isToday ? 'today' : '';
-    const text = labels[i] || '';
-    return `<span class="${cls}" style="right:${rPct.toFixed(1)}%;">${text}</span>`;
-  }).join('');
+    /* ---- Stats grid ---- */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 2px rgba(31,27,22,.03), 0 4px 12px rgba(31,27,22,.04);
+    }
+    .stat-card .label {
+      font-size: 10.5px; color: #9A9285; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .stat-card .value {
+      font-size: 22px; font-weight: 700; color: #1F1B16;
+      margin-top: 6px; letter-spacing: -0.02em; line-height: 1.1;
+    }
+    .stat-card .value .u {
+      font-size: 12px; font-weight: 500; color: #7A7368; margin-left: 2px;
+    }
+    .stat-card .verdict {
+      font-size: 11px; font-weight: 600; color: #4F7A5D;
+      margin-top: 4px; letter-spacing: 0.01em;
+    }
+    .stat-card .verdict.watch { color: #A17526; }
+    .stat-card .verdict.alert { color: #8C4343; }
 
-  return `
-    <div class="plot-row">
-      <div class="y-axis">
-        <span class="y-unit">ml</span>
-        ${yAxisHtml}
+    /* ---- Big chart card ---- */
+    .chart-card {
+      background: #fff;
+      border-radius: 22px;
+      padding: 14px 16px 12px;
+      box-shadow: 0 1px 2px rgba(31,27,22,.03), 0 4px 12px rgba(31,27,22,.04);
+    }
+    .chart-card-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 10px;
+    }
+    .chart-card-title { font-size: 14px; font-weight: 700; color: #1F1B16; letter-spacing: -0.01em; }
+    .chart-card-unit { font-size: 11px; color: #9A9285; font-weight: 500; }
+    /* ---- Chart volume (meme DA que l'accueil) ---- */
+    .chart-wrap {
+      height: 150px;
+      display: flex;
+      flex-direction: column;
+    }
+    .plot-row {
+      flex: 1 1 auto;
+      display: flex;
+      gap: 4px;
+      min-height: 0;
+    }
+    .y-axis {
+      width: 22px;
+      flex-shrink: 0;
+      position: relative;
+      pointer-events: none;
+    }
+    .y-axis .y-unit {
+      position: absolute; top: 0; right: 0;
+      font-size: 9px; color: #9A9285; font-weight: 600;
+      text-transform: lowercase; letter-spacing: 0.02em;
+    }
+    .y-axis .y-tick {
+      position: absolute; right: 0;
+      transform: translateY(-50%);
+      font-size: 9.5px; color: #9A9285; font-weight: 500;
+      white-space: nowrap;
+    }
+    .chart-plot {
+      flex: 1 1 auto;
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+    }
+    .chart-plot svg { display: block; width: 100%; height: 100%; }
+    .chart-wrap .day-labels {
+      position: relative;
+      height: 16px;
+      flex-shrink: 0;
+      margin-top: 6px;
+    }
+    .chart-wrap .day-labels span {
+      position: absolute;
+      transform: translateX(50%);
+      font-size: 11px; color: #9A9285; font-weight: 500;
+      white-space: nowrap;
+    }
+    .chart-wrap .day-labels span.today { color: #1F1B16; font-weight: 600; }
+    .day-dot {
+      position: absolute;
+      width: 7px; height: 7px;
+      border-radius: 999px;
+      transform: translate(50%, -50%);
+      pointer-events: none;
+      z-index: 1;
+      box-sizing: border-box;
+      border: 1.5px solid #fff;
+    }
+    .day-dot.today { z-index: 2; }
+    .avg-label {
+      position: absolute;
+      left: 4px;
+      transform: translateY(-50%);
+      font-size: 10px; color: #4A433A;
+      background: rgba(255,255,255,0.45);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      padding: 2px 7px; border-radius: 8px;
+      font-weight: 600; pointer-events: none;
+      border: 1px solid rgba(242,237,228,0.6);
+      white-space: nowrap;
+      z-index: 2;
+    }
+
+    /* ---- Heatmap card ---- */
+    .heatmap-card {
+      background: #fff;
+      border-radius: 22px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 2px rgba(31,27,22,.03), 0 4px 12px rgba(31,27,22,.04);
+    }
+    .heatmap-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .heatmap-title { font-size: 14px; font-weight: 700; color: #1F1B16; letter-spacing: -0.01em; }
+    .heatmap-hint { font-size: 11px; color: #9A9285; }
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: repeat(24, 1fr);
+      gap: 2px;
+      margin-top: 10px;
+    }
+    .heatmap-cell {
+      aspect-ratio: 1;
+      border-radius: 3px;
+      background: #E8E1D3;
+    }
+    .heatmap-hours {
+      display: flex; justify-content: space-between;
+      margin-top: 6px;
+      font-size: 10px; color: #9A9285; font-weight: 500;
+    }
+
+    /* ---- Section label ---- */
+    .section-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.12em; color: #9A9285;
+    }
+
+    /* ---- Bottom nav (identique home) ---- */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      background: linear-gradient(to top, rgba(250,247,242,.95) 55%, rgba(250,247,242,0));
+      pointer-events: none;
+    }
+    .bottom-nav-inner {
+      max-width: 440px; margin: 0 auto;
+      padding: 10px 16px 16px;
+      pointer-events: auto;
+    }
+    .bottom-nav-bar {
+      background: #fff;
+      border: 1px solid #F2EDE4;
+      border-radius: 28px;
+      box-shadow: 0 2px 6px rgba(31,27,22,.05), 0 14px 32px rgba(31,27,22,.07);
+      padding: 8px 6px;
+      display: flex; align-items: center; justify-content: space-around;
+    }
+    .bottom-nav-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 6px 4px; color: #9A9285; background: transparent; border: 0; cursor: pointer;
+      border-radius: 18px; transition: color .15s ease, background-color .15s ease;
+      text-decoration: none;
+    }
+    .bottom-nav-btn:hover:not([disabled]) { color: #4A433A; }
+    .bottom-nav-btn span { font-size: 10.5px; margin-top: 4px; font-weight: 500; letter-spacing: 0.01em; }
+    .bottom-nav-btn.active { color: #1F1B16; background: #FAF7F2; }
+    .bottom-nav-btn.active span { font-weight: 700; }
+    .bottom-nav-btn.active svg { stroke-width: 2.4; }
+  </style>
+</head>
+
+<body>
+
+  <div class="viewport pb-28">
+
+    <!-- Header (brand + fountain % + avatar) -->
+    <header class="px-5 pt-6 pb-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="./index.html"><img src="./assets/logo.png" alt="PurrSense" class="brand-logo" /></a>
+        <div id="fountain-pill" class="fountain-pill" style="display:none;" title="Niveau estime de la fontaine">
+          <svg class="drop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 2.5c-.4 0-.77.18-1.02.5C8.9 5.58 4 12 4 15.5a8 8 0 0 0 16 0c0-3.5-4.9-9.92-6.98-12.5A1.3 1.3 0 0 0 12 2.5z"/>
+          </svg>
+          <span id="fountain-pct-text">--%</span>
+        </div>
       </div>
-      <div class="chart-plot">
-        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stop-color="${color}" stop-opacity="1"/>
-              <stop offset="100%" stop-color="${color}" stop-opacity="0.55"/>
-            </linearGradient>
-            <linearGradient id="${gradTodayId}" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stop-color="#1F1B16" stop-opacity="1"/>
-              <stop offset="100%" stop-color="#1F1B16" stop-opacity="0.65"/>
-            </linearGradient>
-          </defs>
-          ${gridLines}
-          ${bars}
-          ${avgLine}
+      <button class="avatar-btn" aria-label="Reglages">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="4"></circle>
+          <path d="M4 22c0-4 4-7 8-7s8 3 8 7"></path>
         </svg>
-        ${avgYPct !== null ? `<div class="avg-label" style="top: ${avgYPct.toFixed(1)}%">moy. ${Math.round(dailyAvg)}</div>` : ''}
+      </button>
+    </header>
+
+    <!-- Cat selector : photos Papouille / Tigrou -->
+    <section class="cat-selector">
+      <button class="cat-pick active" data-cat="papouille" aria-label="Afficher Papouille">
+        <div class="cat-pick-photo" style="background-image:url('./assets/papouille.png');"></div>
+        <div class="min-w-0">
+          <p class="cat-pick-name">Papouille</p>
+          <p class="cat-pick-hint">grand buveur</p>
+        </div>
+      </button>
+      <button class="cat-pick inactive" data-cat="tigrou" aria-label="Afficher Tigrou">
+        <div class="cat-pick-photo" style="background-image:url('./assets/tigrou.png');"></div>
+        <div class="min-w-0">
+          <p class="cat-pick-name">Tigrou</p>
+          <p class="cat-pick-hint">petit buveur</p>
+        </div>
+      </button>
+    </section>
+
+    <!-- Period tabs -->
+    <section class="px-5 mt-5 flex items-center justify-between">
+      <div class="period-tabs" role="tablist">
+        <button class="period-tab" data-period="30">30 j</button>
+        <button class="period-tab active" data-period="7">7 j</button>
+        <button class="period-tab" data-period="0" disabled title="A venir">Tout</button>
+      </div>
+      <span class="section-label" id="session-count">—</span>
+    </section>
+
+    <!-- AI analysis -->
+    <section class="px-5 mt-4">
+      <div class="ai-card">
+        <div class="ai-card-head">
+          <div class="ai-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3l1.6 4.3L18 9l-4.4 1.7L12 15l-1.6-4.3L6 9l4.4-1.7z"/>
+              <path d="M19 14l.7 1.9L22 17l-2.3.9L19 20l-.7-2.1L16 17l2.3-1.1z"/>
+              <path d="M6 18l.5 1.3L8 20l-1.5.5L6 22l-.5-1.5L4 20l1.5-.7z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="ai-title">Analyse intelligente</div>
+            <div class="ai-subtitle" id="ai-period-sub">Derniers 7 jours</div>
+          </div>
+        </div>
+        <div class="ai-content" id="ai-content">
+          <p class="ai-placeholder">Bientot : observations automatiques sur son comportement, tendances et signaux inhabituels sur la periode.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats grid 2x2 -->
+    <section class="px-5 mt-4">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="label">Volume moy.</div>
+          <div class="value" id="stat-volume">—</div>
+          <div class="verdict" id="stat-volume-verdict">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Duree moy.</div>
+          <div class="value" id="stat-duration">—</div>
+          <div class="verdict" id="stat-duration-verdict">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Rythme median</div>
+          <div class="value" id="stat-rate">—</div>
+          <div class="verdict" id="stat-rate-verdict">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Sessions / j</div>
+          <div class="value" id="stat-sessions">—</div>
+          <div class="verdict" id="stat-sessions-verdict">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Volume chart (meme DA que l'accueil) -->
+    <section class="px-5 mt-4">
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <span class="chart-card-title" id="chart-title">Volume sur 7 jours</span>
+          <span class="chart-card-unit">ml / jour</span>
+        </div>
+        <div class="chart-wrap" id="volume-chart"></div>
+      </div>
+    </section>
+
+    <!-- Heatmap -->
+    <section class="px-5 mt-4">
+      <div class="heatmap-card">
+        <div class="heatmap-head">
+          <span class="heatmap-title">Heures ou il boit</span>
+          <span class="heatmap-hint" id="heatmap-hint">sessions / heure</span>
+        </div>
+        <div class="heatmap-grid" id="heatmap-grid"></div>
+        <div class="heatmap-hours">
+          <span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>24h</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <div class="bottom-nav-bar">
+        <a class="bottom-nav-btn" href="./index.html" aria-label="Accueil">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span>Accueil</span>
+        </a>
+        <button class="bottom-nav-btn active" aria-label="Chats">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          <span>Chats</span>
+        </button>
+        <a class="bottom-nav-btn" href="./timeline.html" aria-label="Timeline">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Timeline</span>
+        </a>
+        <button class="bottom-nav-btn" aria-label="Reglages" disabled>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.08 7.08l4.24 4.24M1 12h6m10 0h6M4.22 19.78l4.24-4.24m7.08-7.08l4.24-4.24"/></svg>
+          <span>Reglages</span>
+        </button>
       </div>
     </div>
-    <div class="day-labels">${dayLabelsHtml}</div>
-  `;
-}
+  </nav>
 
-function renderVolumeChart(stats, cfg) {
-  const el = document.getElementById('volume-chart');
-  const values = stats.dailyVolumes;
-  const labels = buildPeriodLabels(state.period);
-  el.innerHTML = buildAreaChart(values, labels, cfg.accent, stats.volumeAvg);
-  document.getElementById('chart-title').textContent = `Volume sur ${state.period} jours`;
-}
-
-// ------- Rendu heatmap 24h -------
-
-function renderHeatmap(stats, cfg) {
-  const grid = document.getElementById('heatmap-grid');
-  const max = Math.max(...stats.hourly, 1);
-  grid.innerHTML = stats.hourly.map((count, h) => {
-    const opacity = count === 0 ? 0.08 : (0.15 + 0.85 * (count / max));
-    const bg = count === 0 ? '#E8E1D3' : cfg.accent;
-    const tooltip = `${h}h — ${count} session${count > 1 ? 's' : ''}`;
-    return `<div class="heatmap-cell" style="background:${bg};opacity:${opacity.toFixed(2)};" title="${tooltip}"></div>`;
-  }).join('');
-}
-
-// ------- Selector / tabs state -------
-
-function updateCatSelector() {
-  document.querySelectorAll('.cat-pick').forEach(el => {
-    const isActive = el.dataset.cat === state.currentCat;
-    el.classList.toggle('active', isActive);
-    el.classList.toggle('inactive', !isActive);
-    el.style.borderColor = isActive ? CATS[el.dataset.cat].accent : 'transparent';
-  });
-}
-
-function updatePeriodTabs() {
-  document.querySelectorAll('.period-tab').forEach(el => {
-    const p = parseInt(el.dataset.period);
-    el.classList.toggle('active', p === state.period);
-  });
-}
-
-// ------- Render global -------
-
-function renderProfile() {
-  const cfg = CATS[state.currentCat];
-  const stats = computeProfileStats(state.sessions, state.currentCat, state.period);
-  updateCatSelector();
-  updatePeriodTabs();
-  renderStatsCards(stats, cfg);
-  renderVolumeChart(stats, cfg);
-  renderHeatmap(stats, cfg);
-  document.getElementById('session-count').textContent =
-    `${stats.totalSessions} session${stats.totalSessions > 1 ? 's' : ''}`;
-  document.getElementById('ai-period-sub').textContent =
-    state.period === 30 ? 'Derniers 30 jours'
-    : state.period === 7 ? 'Derniers 7 jours'
-    : 'Depuis le debut';
-}
-
-// ------- Events -------
-
-function initEvents() {
-  document.querySelectorAll('.cat-pick').forEach(el => {
-    el.addEventListener('click', () => {
-      const newCat = el.dataset.cat;
-      if (newCat === state.currentCat) return;
-      state.currentCat = newCat;
-      const url = new URL(window.location.href);
-      url.searchParams.set('id', newCat);
-      history.replaceState({}, '', url);
-      renderProfile();
-    });
-  });
-
-  document.querySelectorAll('.period-tab').forEach(el => {
-    el.addEventListener('click', () => {
-      if (el.disabled) return;
-      const p = parseInt(el.dataset.period);
-      if (p === 0 || p === state.period) return;
-      state.period = p;
-      renderProfile();
-    });
-  });
-}
-
-// ------- Boot -------
-
-async function main() {
-  // Parse URL ?id=papouille|tigrou
-  const params = new URLSearchParams(window.location.search);
-  const idParam = params.get('id');
-  if (idParam === 'papouille' || idParam === 'tigrou') {
-    state.currentCat = idParam;
-  }
-
-  initEvents();
-  updateCatSelector();
-  updatePeriodTabs();
-
-  try {
-    state.sessions = await fetchSessions();
-    renderProfile();
-    renderFountainPill(computeFountainFill(state.sessions));
-  } catch (e) {
-    console.error(e);
-    document.getElementById('session-count').textContent = `Erreur : ${e.message}`;
-  }
-}
-
-main();
+  <script src="./chat.js"></script>
+</body>
+</html>

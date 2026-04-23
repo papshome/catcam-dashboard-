@@ -251,28 +251,26 @@ function buildAreaChart(values, labels, color, dailyAvg) {
         <span class="y-unit">ml</span>
         ${yAxisHtml}
       </div>
-      <div class="chart-column">
-        <div class="chart-plot">
-          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stop-color="${color}" stop-opacity="1"/>
-                <stop offset="100%" stop-color="${color}" stop-opacity="0.55"/>
-              </linearGradient>
-              <linearGradient id="${gradTodayId}" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stop-color="#1F1B16" stop-opacity="1"/>
-                <stop offset="100%" stop-color="#1F1B16" stop-opacity="0.65"/>
-              </linearGradient>
-            </defs>
-            ${gridLines}
-            ${bars}
-            ${avgLine}
-          </svg>
-          ${avgYPct !== null ? `<div class="avg-label" style="top: ${avgYPct.toFixed(1)}%">moy. ${Math.round(dailyAvg)}</div>` : ''}
-        </div>
-        <div class="day-labels">${dayLabelsHtml}</div>
+      <div class="chart-plot">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stop-color="${color}" stop-opacity="1"/>
+              <stop offset="100%" stop-color="${color}" stop-opacity="0.55"/>
+            </linearGradient>
+            <linearGradient id="${gradTodayId}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stop-color="#1F1B16" stop-opacity="1"/>
+              <stop offset="100%" stop-color="#1F1B16" stop-opacity="0.65"/>
+            </linearGradient>
+          </defs>
+          ${gridLines}
+          ${bars}
+          ${avgLine}
+        </svg>
+        ${avgYPct !== null ? `<div class="avg-label" style="top: ${avgYPct.toFixed(1)}%">moy. ${Math.round(dailyAvg)}</div>` : ''}
       </div>
     </div>
+    <div class="day-labels">${dayLabelsHtml}</div>
   `;
 }
 

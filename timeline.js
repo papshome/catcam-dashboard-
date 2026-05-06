@@ -529,64 +529,46 @@ function buildWeightChartSvg(s) {
     return '<div style="text-align:center;color:#9A9285;font-size:12px;padding:40px;">Pas de donnees</div>';
   }
 
-  // Simplification : on ne montre pas la courbe brute mais une courbe
-  // stylisee qui respecte le ratio ml/s moyen ET preserve les VRAIS paliers
-  // (pauses du chat) detectes dans la donnee. On repere les plateaux via
-  // un lissage "running max" (monotone non decroissant), puis on construit
-  // la courbe simplifiee avec ces plateaux intercales entre les montees.
-  const totalMl = Math.round(s.delta_g || 0);
-
-  // --- 1. Lissage running max ---
-  const w0 = curve[0].g;
-  let runMax = 0;
-  const monoCurve = curve.map(p => {
-    const raw = Math.max(0, w0 - p.g);
-    runMax = Math.max(runMax, raw);
-    return { t: p.t, ml: runMax };
-  });
-
-  // --- 2. Detection plateaux (pauses du chat) ---
-  //   - seulement entre drinkStart et drinkEnd
-  //   - duree minimale : 5s (sinon ce n'est pas une vraie pause)
-  //   - exclure niveau 0 (pre-boisson) et niveau final (post-boisson)
-  function detectPlateaux(mono, dStart, dEnd, total) {
-    const MIN_PAUSE_SEC = 5;
-    const out = [];
-    let i = 0;
-    while (i < mono.length) {
-      const p = mono[i];
-      if (p.t < dStart) { i++; continue; }
-      if (p.t > dEnd)   break;
-      const lvl = p.ml;
-      if (lvl <= 1 || lvl >= total - 1) { i++; continue; }
-      let j = i;
-      while (j + 1 < mono.length && mono[j + 1].ml === lvl && mono[j + 1].t <= dEnd) j++;
-      const dur = mono[j].t - p.t;
-      if (dur >= MIN_PAUSE_SEC) {
-        out.push({ tStart: p.t, tEnd: mono[j].t, ml: lvl });
-      }
-      i = j + 1;
-    }
-    return out;
-  }
-
   const W = 400, H = 170;
-  const padL = 32, padR = 12, padT = 14, padB = 22;
+  const padL = 46, padR = 12, padT = 14, padB = 22;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
 
+  // Poids bruts avec axe Y zoome sur la plage reelle (comme matplotlib)
+  const weights = curve.map(p => p.g);
+  const wMin = Math.min(...weights);
+  const wMax = Math.max(...weights);
+  const range = Math.max(wMax - wMin, 1);
+  const margin = Math.max(5, Math.round(range * 0.25));
+  const yAxisMin = wMin - margin;
+  const yAxisMax = wMax + margin;
+  const yRange   = yAxisMax - yAxisMin;
+
   const tMax = Math.max(...curve.map(p => p.t), 1);
-  const ticks = niceTicksMl(Math.max(totalMl, 1) * 1.15, 4);
-  const yMax = ticks[ticks.length - 1];
 
-  const xAt = t  => padL + (t / tMax) * innerW;
-  const yAt = ml => padT + innerH - (ml / yMax) * innerH;
+  const xAt = t => padL + (t / tMax) * innerW;
+  const yAt = g => padT + innerH - ((g - yAxisMin) / yRange) * innerH;
 
-  // --- Accent chat ---
+  // Ticks Y : 4-5 valeurs dans la plage de poids
+  function niceWeightTicks(min, max, target) {
+    const rawStep = (max - min) / (target - 1);
+    const pow = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const nice = [1, 2, 2.5, 5, 10];
+    let step = nice[nice.length - 1] * pow;
+    for (const n of nice) {
+      if (n * pow >= rawStep - 1e-9) { step = n * pow; break; }
+    }
+    const ticks = [];
+    const first = Math.ceil(min / step) * step;
+    for (let v = first; v <= max + 1e-9; v += step) ticks.push(Math.round(v));
+    return ticks;
+  }
+  const ticks = niceWeightTicks(yAxisMin, yAxisMax, 5);
+
   const accent = CATS[effectiveCat(s)]?.accent || '#7BA889';
   const gradId = 'w-grad-' + Math.random().toString(36).slice(2, 8);
 
-  // --- Zone boisson : bornes de la courbe simplifiee ---
+  // Zone boisson (marqueurs verticaux verts)
   const zone = computeDrinkingZone(curve, s.drinking_duration_s);
   const drinkStart = zone ? zone.startSec : 0;
   const drinkEnd   = zone ? Math.min(zone.endSec, tMax) : tMax;
@@ -607,60 +589,35 @@ function buildWeightChartSvg(s) {
     `;
   }
 
-  // --- Gridlines horizontaux aux ticks (cream) ---
+  // Gridlines horizontaux
   const gridLines = ticks.map(t => {
     const y = yAt(t);
     return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${y.toFixed(1)}"
-                  stroke="#E8E1D3" stroke-width="0.8" opacity="${t === 0 ? 0.9 : 0.55}"
+                  stroke="#E8E1D3" stroke-width="0.8" opacity="0.55"
                   vector-effect="non-scaling-stroke"/>`;
   }).join('');
 
-  // --- Courbe simplifiee : flat a 0 + rises/plateaux detectes + flat a totalMl ---
-  const plateaux = detectPlateaux(monoCurve, drinkStart, drinkEnd, totalMl);
+  // Courbe des poids bruts (Bezier)
+  const pxPts = curve.map(p => ({ x: xAt(p.t), y: yAt(p.g) }));
 
-  // Construction de la liste de points cles (alternance rises + plateaux)
-  const keyPts = [];
-  if (drinkStart > 0) keyPts.push({ t: 0, ml: 0 });
-  keyPts.push({ t: drinkStart, ml: 0 });
-  for (const plat of plateaux) {
-    keyPts.push({ t: plat.tStart, ml: plat.ml });    // arrivee sur plateau
-    keyPts.push({ t: plat.tEnd,   ml: plat.ml });    // fin plateau
-  }
-  keyPts.push({ t: drinkEnd, ml: totalMl });
-  if (drinkEnd < tMax) keyPts.push({ t: tMax, ml: totalMl });
-
-  const pxPts = keyPts.map(p => ({ x: xAt(p.t), y: yAt(p.ml) }));
-
-  // Path : Bezier cubique entre chaque paire de points consecutifs (rises uniquement)
-  // Les plateaux (2 points consecutifs meme y) deviennent des lignes droites horizontales.
   function buildPath(pts) {
     if (pts.length < 2) return '';
     let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1];
       const b = pts[i];
-      // Plateau horizontal : ligne droite
-      if (Math.abs(a.y - b.y) < 0.5) {
-        d += ` L${b.x.toFixed(1)},${b.y.toFixed(1)}`;
-      } else {
-        // Rise : Bezier avec tangentes horizontales faibles aux extremites
-        const dx = b.x - a.x;
-        const tension = 0.2;
-        const cp1x = a.x + dx * tension;
-        const cp1y = a.y;
-        const cp2x = b.x - dx * tension;
-        const cp2y = b.y;
-        d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
-      }
+      const dx = b.x - a.x;
+      const tension = 0.15;
+      d += ` C${(a.x + dx * tension).toFixed(1)},${a.y.toFixed(1)} ${(b.x - dx * tension).toFixed(1)},${b.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
     }
     return d;
   }
 
-  const linePath = buildPath(pxPts);
-  const baseY   = padT + innerH;
-  const firstX  = pxPts[0].x;
-  const lastX   = pxPts[pxPts.length - 1].x;
-  const areaPath = `${linePath} L${lastX.toFixed(1)},${baseY.toFixed(1)} L${firstX.toFixed(1)},${baseY.toFixed(1)} Z`;
+  const linePath  = buildPath(pxPts);
+  const baseY     = padT + innerH;
+  const firstX    = pxPts[0].x;
+  const lastX     = pxPts[pxPts.length - 1].x;
+  const areaPath  = `${linePath} L${lastX.toFixed(1)},${baseY.toFixed(1)} L${firstX.toFixed(1)},${baseY.toFixed(1)} Z`;
 
   const lineSvg = `
     <path d="${areaPath}" fill="url(#${gradId})"/>
@@ -669,17 +626,14 @@ function buildWeightChartSvg(s) {
           vector-effect="non-scaling-stroke"/>
   `;
 
-  // Pas de marqueurs : courbe stylisee, pas de points bruts
-  const dots = '';
-
-  // --- Y axis labels (ml) ---
+  // Labels axe Y (grammes)
   const yLabels = ticks.map(t => {
     const y = yAt(t);
-    return `<text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#9A9285" font-weight="500">${Math.round(t)}</text>`;
+    return `<text x="${padL - 5}" y="${(y + 3).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#9A9285" font-weight="500">${t}</text>`;
   }).join('');
-  const yUnit = `<text x="${padL - 6}" y="${(padT - 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#9A9285" font-weight="600">ml</text>`;
+  const yUnit = `<text x="${padL - 5}" y="${(padT - 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#9A9285" font-weight="600">g</text>`;
 
-  // --- X axis labels (secondes) ---
+  // Labels axe X (secondes)
   const xLabels = `
     <text x="${padL}" y="${(H - 6).toFixed(1)}" text-anchor="start" font-size="9.5" fill="#9A9285" font-weight="500">0 s</text>
     <text x="${(W - padR).toFixed(1)}" y="${(H - 6).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#9A9285" font-weight="500">${Math.round(tMax)} s</text>
@@ -696,7 +650,6 @@ function buildWeightChartSvg(s) {
       ${gridLines}
       ${zoneSvg}
       ${lineSvg}
-      ${dots}
       ${yUnit}
       ${yLabels}
       ${xLabels}
